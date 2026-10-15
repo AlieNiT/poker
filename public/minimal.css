@@ -1,0 +1,78 @@
+[hidden]{display:none!important}
+body.table-body{background:#183f2d;overflow:hidden}
+.host-shell.immersive{position:fixed;inset:0;width:100%;max-width:none;height:100dvh;margin:0;padding:0;isolation:isolate;color:#e9e6ce}
+.immersive .table-stage{position:absolute;inset:0;height:100%;width:100%;margin:0;overflow:hidden}
+.immersive .poker-table{inset:0;border:0;border-radius:0;padding:0;box-shadow:none;transform:none}
+.immersive .felt{border-radius:0;box-shadow:none}
+.immersive .table-stitch{inset:22px;border-radius:0}
+.immersive .pot-center,.immersive .table-stage.has-3d .pot-center,.immersive .table-stage.has-3d .pot-center:has(.pot-chips){inset:0;transform:none;width:100%;pointer-events:none}
+.immersive .pot-number,.immersive .table-stage.has-3d .pot-center:has(.pot-chips) .pot-number{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:48px;font-weight:450;letter-spacing:-1px;line-height:1.2;color:#ede5c4;text-shadow:0 2px 5px #071a1499}
+.immersive .pot-center:has(.pot-chips) .pot-number{top:calc(50% - 90px)!important}
+.immersive .pot-chips{position:absolute;top:50%;left:50%;transform:translateX(-50%);height:0!important;visibility:visible}
+.immersive .has-3d .pot-chips{visibility:hidden}
+.immersive .seat{color:#e5e3c9}
+.immersive .seat-top{top:28px!important;bottom:auto}
+.immersive .seat-bottom{bottom:28px!important;top:auto}
+.immersive .seat-left{left:34px;top:50%}
+.immersive .seat-right{right:34px;top:50%}
+.immersive .occupied,.immersive .seat-top.occupied,.immersive .seat-bottom.occupied{display:grid;grid-template-columns:40px auto;column-gap:10px;width:auto;min-width:140px;max-width:200px;padding:10px 14px;align-items:center;text-align:left;background:linear-gradient(145deg,#153122dc,#122c20d9);border:1px solid #a9ac7755;border-radius:11px;box-shadow:inset 0 1px 0 #eff6be12,0 3px 0 #0c251850,0 8px 16px #0b261837}
+.immersive .occupied .avatar{grid-row:1/3;width:39px;height:39px;margin:0;border:2px solid #203e2b;box-shadow:0 2px 6px #02130a66}
+.immersive .occupied .presence{border-color:#203e2b}
+.immersive .occupied .seat-name{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#bcc5a1}
+.immersive .occupied .seat-stack{font-size:20px;line-height:1.4;font-weight:500;letter-spacing:-.4px;color:#eee6c7}
+.immersive .empty-seat{width:45px}
+.immersive .empty-avatar{background:#183b263e;border:1px dashed #b9c49c54;color:#c6cbaa;margin:0;box-shadow:none;width:42px;height:42px}
+.immersive .table-controls{position:absolute;top:24px;right:24px;z-index:10;display:flex;align-items:center;gap:10px}
+.immersive .connection{padding:0;font-size:0;width:6px}.immersive .connection i{background:#a2b877;box-shadow:0 0 5px #bfc68b44}.immersive .connection.offline i{background:#d19d71}
+.immersive .icon-button{width:42px;height:42px;border:1px solid #acb58a32;border-radius:10px;background:linear-gradient(145deg,#173b2bda,#0e2e20e3);color:#d1d5b3;box-shadow:inset 0 1px 0 #d7dfb210,0 3px 8px #0c231a33}
+.immersive .icon-button:hover{background:#32543be8;border-color:#b5bf8b66;color:#efe8c7}
+.immersive .icon-button:disabled{opacity:.26;box-shadow:none}
+.immersive .icon-button svg{width:19px;height:19px}
+.controls-drawer{position:absolute;right:0;top:54px;display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid #a4b18428;border-radius:13px;background:#102d21df;box-shadow:0 12px 24px #071c164d}
+.immersive .table-award{position:absolute;bottom:24px;right:24px;width:50px;height:50px;border-color:#c6b47857;color:#d3c190;z-index:10}
+.modal h2{margin:8px 0 24px;font-size:23px}.modal{padding-top:30px}.eligibility{padding:12px}.refund-name{display:block;margin-top:10px;font-size:11px;color:#889277}.invite-modal-qr .qr{width:220px;height:220px;padding:10px}.invite-code{margin:15px 0}.invite-code strong{font-size:30px}.copy-field{margin-top:12px}
+.player-shell.minimal-phone{height:100dvh;min-height:0;display:flex;flex-direction:column;padding-bottom:max(20px,env(safe-area-inset-bottom));overflow:hidden}
+.minimal-phone .player-top,.minimal-phone.has-3d .player-top{height:44px;min-height:44px;background:none;border:0;box-shadow:none;padding-top:3px}
+.minimal-phone .phone-pot,.minimal-phone.has-3d .phone-pot{height:90px;min-height:90px;padding:12px 20px 18px;border-radius:0 0 60px 60px;display:grid;place-items:center}
+.minimal-phone #player-pot{font-family:var(--display);font-size:32px;font-weight:450;line-height:1.2;color:#e4dfbf;letter-spacing:-.5px;text-shadow:0 2px 4px #0a291a}
+.minimal-phone .player-intro,.minimal-phone.has-3d .player-intro{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:20px 3px 5px;min-height:50px}
+.minimal-phone .player-name{font-size:15px;color:#c3cdad;font-weight:400}
+.minimal-phone .player-balance{font-size:34px;margin:0;line-height:1.2;letter-spacing:-1.2px}
+.minimal-phone .chip-mat,.minimal-phone.has-3d .chip-mat{flex:1;min-height:235px;max-height:none;height:auto;margin:22px 0 16px;border-color:#b1c19330}
+.minimal-phone .selection-area,.minimal-phone.has-3d .selection-area{position:relative;height:126px;min-height:126px;padding:0 12px 8px;border-color:#b7c58924}
+.minimal-phone .selection-area:has(.selected-tray:empty){border-color:transparent;background:none;box-shadow:none}
+.minimal-phone .selection-clear{position:absolute;right:6px;top:3px;z-index:15;width:27px;height:27px}
+.minimal-phone .selection-clear svg{width:15px;height:15px}
+.minimal-phone .selected-tray{height:74px;min-height:74px;margin:0;z-index:10}
+.minimal-phone .selection-bottom{height:39px;min-height:39px;padding:0 3px}
+.minimal-phone .selection-bottom>span{font-size:23px;font-weight:500}
+.minimal-phone .throw-button{width:46px;height:35px;min-height:35px;padding:7px 12px}
+.minimal-phone .call-button{min-height:48px;margin-top:12px;font-size:14px}
+.join-shell{padding-top:35px}.join-shell>h1{font-size:29px;margin-top:0;margin-bottom:25px}
+@media(max-width:580px){.immersive .seat-top{top:25px!important}.immersive .seat-bottom{bottom:25px!important}.immersive .seat-left{left:21px}.immersive .seat-right{right:21px}.immersive .occupied,.immersive .seat-top.occupied,.immersive .seat-bottom.occupied{grid-template-columns:27px auto;column-gap:7px;min-width:98px;max-width:126px;padding:8px 9px;border-radius:9px}.immersive .occupied .avatar{width:27px;height:27px;font-size:12px}.immersive .occupied .seat-name{font-size:9px;max-width:65px}.immersive .occupied .seat-stack{font-size:15px}.immersive .table-controls{top:20px;right:19px;gap:6px}.immersive .icon-button{width:34px;height:34px;border-radius:8px}.immersive .icon-button svg{width:16px;height:16px}.controls-drawer{top:44px;padding:6px;gap:7px}.immersive .table-award{bottom:20px;right:19px;width:40px;height:40px}.immersive .pot-number,.immersive .table-stage.has-3d .pot-center:has(.pot-chips) .pot-number{font-size:37px}.immersive .pot-center:has(.pot-chips) .pot-number{top:calc(50% - 75px)!important}.minimal-phone.has-3d .chip-mat{height:auto;min-height:235px}}
+@media(max-height:720px){.minimal-phone .phone-pot,.minimal-phone.has-3d .phone-pot{height:70px;min-height:70px}.minimal-phone .player-intro,.minimal-phone.has-3d .player-intro{margin-top:11px;min-height:42px}.minimal-phone .chip-mat,.minimal-phone.has-3d .chip-mat{min-height:190px;margin-top:13px;margin-bottom:5px}.minimal-phone .selection-area,.minimal-phone.has-3d .selection-area{height:112px;min-height:112px}.minimal-phone .selected-tray{height:63px;min-height:63px}.minimal-phone .player-balance{font-size:29px}.minimal-phone .stack-visual .chip{width:51px;height:51px}}
+.minimal-phone .chip-mat,.minimal-phone.has-3d .chip-mat{min-height:260px;margin:10px 0 18px;border:0;border-radius:0;box-shadow:none;overflow:visible}
+.minimal-phone .wallet-stack{width:65px;height:68px}
+.minimal-phone .wallet-stack .stack-visual .chip{width:56px;height:56px}
+.minimal-phone .wallet-stack .stack-count{width:56px;font-size:8px;padding:3px 0}
+.minimal-phone #selected-tray{position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;pointer-events:none;z-index:3;transform:none}
+.minimal-phone .loose-chip{position:absolute;width:58px;height:58px;padding:0;background:none;border-radius:50%;transform:translate(-50%,-50%);touch-action:none;pointer-events:auto;cursor:grab;user-select:none}
+.minimal-phone .loose-chip.dragging{cursor:grabbing;z-index:100!important}
+.minimal-phone.has-3d .loose-chip>.chip{visibility:hidden}
+.minimal-phone #selection-value{position:absolute;top:57%;left:50%;transform:translateX(-50%);font-family:var(--display);font-size:20px;color:#d5d8b4;letter-spacing:-.5px;pointer-events:none;z-index:2}
+.minimal-phone .chip-mat.return-active:after{content:'';position:absolute;left:5%;right:5%;bottom:1%;height:27%;background:radial-gradient(ellipse,#cbb87c22,transparent 70%);pointer-events:none}
+.minimal-phone .call-button{margin-top:0;flex-shrink:0}
+.minimal-phone .loose-chip:focus-visible{outline-color:#dac899;outline-offset:5px}
+.minimal-phone .player-intro,.minimal-phone.has-3d .player-intro{justify-content:center}
+.minimal-phone .phone-actions{display:flex;gap:10px;flex-shrink:0}
+.minimal-phone .phone-actions .call-button{flex:1}
+.minimal-phone .exchange-button{min-height:48px;padding:10px 16px;background:linear-gradient(145deg,#274d37,#183b29);border:1px solid #bdc39745;color:#e0dec0;font-size:12px;box-shadow:inset 0 1px 0 #f7f3c314,0 3px 8px #091e1844}
+.minimal-phone .all-in-carry .wallet-stack{transform:translate(var(--stack-dx,0px),calc(-50% + var(--stack-dy,0px)));z-index:4}
+.exchange-options{display:grid;gap:12px}
+.exchange-option{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 10px;border:1px solid #a2ac8155;border-radius:12px;background:linear-gradient(145deg,#edf0e2,#d8dfc7);box-shadow:inset 0 1px 0 #fff9,0 3px 8px #132e1c15;color:#304932}
+.exchange-option>span{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.exchange-option>svg{width:22px;flex-shrink:0}
+.exchange-chips{display:flex;align-items:center;gap:5px;font-size:12px}
+.exchange-chips .chip{width:42px;height:42px;flex-shrink:0}
+.exchange-chips .chip>span{font-size:14px}
+.exchange-chips .chip:before{inset:4px}.exchange-chips .chip:after{inset:10px}

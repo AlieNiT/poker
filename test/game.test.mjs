@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createRoom,joinRoom,bet,hostAction,potsFor} from '../game.mjs';
+
+function table(count=4){const r=createRoom('ABCD','host');['bottom','left','top','right'].slice(0,count).forEach((seat,i)=>joinRoom(r,{name:`Player ${i+1}`,seat}));return r;}
+function total(r){return r.players.reduce((n,p)=>n+p.balance+p.contribution,0);}
+test('four unique seats; joining during a hand is rejected',()=>{
+  const r=table();assert.throws(()=>joinRoom(r,{name:'Fifth',seat:'bottom'}),/four players/);
+  const two=table(2);assert.throws(()=>joinRoom(two,{name:'Duplicate',seat:'bottom'}),/taken/);
+  bet(two,two.players[0],5);assert.throws(()=>joinRoom(two,{name:'Late',seat:'top'}),/next hand/);
+});
+test('calling matches total contributions without tracking streets and is capped at the stack',()=>{
+  const r=table(2);bet(r,r.players[0],80);bet(r,r.players[1],20);bet(r,r.players[1],undefined,true);
+  assert.equal(r.players[1].contribution,80);assert.equal(total(r),2000);
+  bet(r,r.players[0],50);bet(r,r.players[1],undefined,true);assert.equal(r.players[1].contribution,130);
+  r.players[1].balance=10;bet(r,r.players[0],50);bet(r,r.players[1],undefined,true);assert.equal(r.players[1].balance,0);
+});
+test('layered side pots, folded contributions, and uncalled chips preserve all chips',()=>{
+  const r=table();[100,300,300,500].forEach((n,i)=>bet(r,r.players[i],n));
+  hostAction(r,'inHand',{playerId:r.players[2].id,value:false});
+  const pots=potsFor(r);assert.deepEqual(pots.map(p=>p.amount),[400,600,200]);
+  assert.deepEqual(pots[1].eligible,[r.players[1].id,r.players[3].id]);assert.equal(pots[2].refund,r.players[3].id);
+  const winners={'pot-0':[r.players[0].id],'pot-1':[r.players[1].id]};
+  hostAction(r,'award',{winners});assert.deepEqual(r.players.map(p=>p.balance),[1300,1300,700,700]);
+  assert.equal(total(r),4000);assert.equal(r.hand,2);assert.ok(r.players.every(p=>p.inHand));
+});
+test('invalid award is atomic, and ineligible players cannot win a side pot',()=>{
+  const r=table(3);[50,100,100].forEach((n,i)=>bet(r,r.players[i],n));const before=JSON.stringify(r);
+  assert.throws(()=>hostAction(r,'award',{winners:{'pot-0':[r.players[0].id],'pot-1':[r.players[0].id]}}),/eligible/);
+  assert.equal(JSON.stringify(r),before);
+  assert.throws(()=>hostAction(r,'award',{winners:{'pot-0':[r.players[0].id]}}),/eligible/);
+});
+test('split pot odd chips go in clockwise seat order',()=>{
+  const r=table(3);r.players.forEach(p=>bet(r,p,5));
+  hostAction(r,'award',{winners:{'pot-0':[r.players[1].id,r.players[0].id]}});
+  assert.deepEqual(r.players.map(p=>p.balance),[1003,1002,995]);assert.equal(total(r),3000);
+});
+test('loan and repayment are bounded; all-in loans wait until the next hand',()=>{
+  const r=table(2),p=r.players[0];hostAction(r,'loan',{playerId:p.id,amount:500});assert.equal(p.debt,500);assert.equal(p.balance,1500);
+  assert.throws(()=>hostAction(r,'repay',{playerId:p.id,amount:501}),/exceed/);
+  hostAction(r,'repay',{playerId:p.id,amount:200});assert.equal(p.debt,300);assert.equal(p.balance,1300);
+  bet(r,p,1300);assert.throws(()=>hostAction(r,'loan',{playerId:p.id,amount:500}),/after this hand/);
+});
+test('bets must be positive whole chips and cannot exceed the balance',()=>{
+  const r=table(2),p=r.players[0];for(const n of [-1,0,.5,NaN,1001])assert.throws(()=>bet(r,p,n));
+  assert.equal(p.balance,1000);assert.equal(p.contribution,0);
+  hostAction(r,'inHand',{playerId:p.id,value:false});assert.throws(()=>bet(r,p,5),/out of this hand/);
+});
+test('a payout preview cannot silently award changed pots',()=>{
+  const r=table(2);r.players.forEach(p=>bet(r,p,25));const expectedPots=potsFor(r);
+  bet(r,r.players[0],5);const before=JSON.stringify(r);
+  assert.throws(()=>hostAction(r,'award',{expectedPots,winners:{'pot-0':[r.players[0].id]}}),/pots changed/);
+  assert.equal(JSON.stringify(r),before);
+});
+test('compact chip counts accept large selections and reject mismatched exchanges atomically',()=>{
+  const room=table(2),player=room.players[0],before=JSON.stringify(room);
+  for(const counts of [{1:300,5:0,25:0,100:0},{1:0,5:-1,25:0,100:1},{1:0,5:0,25:0,100:1.5},{1:0,5:0,25:0,100:1,50:1}]){
+    assert.throws(()=>bet(room,player,100,false,undefined,counts),/match/);
+    assert.equal(JSON.stringify(room),before);
+  }
+  bet(room,player,300,false,undefined,{1:300,5:0,25:0,100:0});
+  assert.equal(player.balance,700);assert.equal(room.lastEvent.chipCounts[1],300);
+  assert.equal(total(room),2000);
+});

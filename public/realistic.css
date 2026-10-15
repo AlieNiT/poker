@@ -1,0 +1,66 @@
+/* The host controls stay quiet; the playing surfaces use solid WebGL geometry. */
+.surface-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;display:block}
+.table-stage.has-3d .poker-table{background:none;border:0;box-shadow:none;transform:none;padding:0;pointer-events:none}
+.table-stage.has-3d .table-shadow{display:none}
+.table-stage.has-3d .felt{background:none;box-shadow:none;overflow:visible}
+.table-stage.has-3d .table-stitch,.table-stage.has-3d .felt-wordmark,.table-stage.has-3d .felt-bottom{display:none}
+.table-stage.has-3d .pot-chips{visibility:hidden;height:93px}
+.table-stage.has-3d .pot-center{top:53%;z-index:1;width:230px}
+.table-stage.has-3d .pot-center:has(.pot-chips){top:55%}
+.table-stage.has-3d .pot-center:has(.pot-chips) .pot-number{font-size:42px}
+.table-stage.has-3d .pot-detail{position:relative;top:4px;color:#c8ccb0;text-shadow:0 1px 3px #071c14}
+.table-stage.has-3d .pot-center:has(.pot-chips) .pot-detail{top:24px}
+.table-stage.has-3d .flight-layer{display:none}
+.seat-top.occupied,.seat-bottom.occupied{background:linear-gradient(155deg,#fbfcf7,#edf0e6);box-shadow:inset 0 1px 0 #fff,0 2px 0 #ccd4c1,0 7px 12px #142b1914}
+.side-card{background:linear-gradient(135deg,#fcfdf7,#f5f7ef);box-shadow:inset 0 1px 0 white,0 2px 0 #e0e5d8,0 7px 18px #1c33270b}
+.pot-card{background:linear-gradient(135deg,#f0f4e8,#e7eddc)}
+.primary{background:linear-gradient(150deg,#327354,#22593e);border-top:1px solid #71a58055;box-shadow:inset 0 1px 0 #ffffff18,0 3px 0 #153d2a,0 5px 9px #16362022}
+.primary:active:not(:disabled){transform:translateY(2px);box-shadow:inset 0 1px 2px #071f1955,0 1px 0 #153d2a}
+.primary:disabled{background:#c8d2bc;border-top:1px solid transparent;box-shadow:none}
+
+.player-body:has(.player-shell){background:#1d251f}
+.player-shell{position:relative;isolation:isolate;color:#e7e4cf;padding-bottom:max(24px,env(safe-area-inset-bottom));overflow:hidden;box-shadow:0 0 60px #030e08a6}
+.player-shell.has-3d{background:#234f3a}
+.player-shell.has-3d>div,.player-shell.has-3d>header,.player-shell.has-3d>button,.player-shell.has-3d>p{position:relative;z-index:1}
+.player-shell.has-3d .brand{color:#ebe9d9}
+.player-shell.has-3d .brand-mark{background:#bba677;color:#183626;border:1px solid #d4c79d;box-shadow:inset 0 1px 0 #f4e8c1,0 2px 4px #091c1266}
+.player-shell.has-3d .brand-dot{color:#bda56e}
+.player-shell.has-3d .player-top{margin:0 -24px;padding:0 23px;background:linear-gradient(175deg,#25382bd9,#142b20e8);border-bottom:1px solid #a8a0743b;box-shadow:0 3px 13px #06180d42}
+.player-shell.has-3d .connection{color:#bcc4a5}.player-shell.has-3d .connection i{background:#afc289;box-shadow:0 0 5px #97bd6570}.player-shell.has-3d .connection.offline{color:#e5b486}.player-shell.has-3d .connection.offline i{background:#e5b486}
+.player-shell.has-3d .icon-button{color:#bcc4a5}.player-shell.has-3d .icon-button:hover{background:#d5dfb417}
+.player-shell.has-3d .phone-pot{background:linear-gradient(180deg,#142d2290,#08281c30);border:0;border-bottom:1px solid #b6b28245;border-radius:0 0 90px 90px;padding:19px 20px 25px;box-shadow:inset 0 -4px 14px #071c1c38,0 2px 0 #163d2a}
+.player-shell.has-3d .phone-pot:before{inset:5px 13px 9px;border-color:#b8bd8740}
+.player-shell.has-3d .phone-pot>span:first-child{color:#c2c7a6}
+.player-shell.has-3d .phone-pot-amount>span{color:#c4c9ab}
+.player-shell.has-3d .phone-pot-amount>strong{color:#f0ecd6;text-shadow:0 2px 3px #10261b}
+.player-shell.has-3d .throw-guide{color:#bdc79e}
+.player-shell.has-3d .target-active{box-shadow:inset 0 -3px 30px #d8c57d35,0 0 0 2px #cdbd8755}
+.player-shell.has-3d .player-intro{margin-top:23px}
+.player-shell.has-3d .eyebrow{color:#c0c7a3}
+.player-shell.has-3d .seat-direction{color:#b5bd99}
+.player-shell.has-3d .player-balance{color:#f0ebd3;text-shadow:0 1px 3px #051a13}
+.player-shell.has-3d .player-balance>span{color:#bec6a6}
+.player-shell.has-3d .balance-sub{color:#c0c7a5}
+.player-shell.has-3d .chip-mat{background:transparent;box-shadow:inset 0 0 0 4px #132f2020;border:1px dashed #bbc99852;border-radius:20px;margin-top:26px;height:247px;overflow:visible}
+.player-shell.has-3d .mat-watermark{color:#c9d5b50c}
+.player-shell.has-3d .wallet-stack .stack-visual{visibility:hidden}
+.player-shell.has-3d .wallet-stack{z-index:3}
+.player-shell.has-3d .stack-count{color:#e3e5c9;background:#1737259e;border:1px solid #97a27036;border-radius:5px;padding:4px 0;margin-top:10px;box-shadow:0 1px 3px #09261922;font-size:10px}
+.player-shell.has-3d .mat-hint{color:#c2c9a4;font-size:9px;bottom:11px}
+.player-shell.has-3d .selection-area{background:linear-gradient(160deg,#0a2a1b48,#17392520);border:1px solid #b8c18d4a;border-radius:14px;box-shadow:inset 0 1px 9px #061f183b,0 1px 0 #74966e21}
+.player-shell.has-3d .selection-area .link-button{color:#c5cfaa}
+.player-shell.has-3d .tray-placeholder{color:#b7c4a2}
+.player-shell.has-3d .selected-chips{visibility:hidden}
+.player-shell.has-3d .selection-bottom>span{color:#efe9cb}
+.player-shell.has-3d .selection-bottom small{color:#bfca9e}
+.player-shell.has-3d .throw-button{background:linear-gradient(150deg,#d9c99c,#bca372);color:#2d4029;border:1px solid #e7d9b0;box-shadow:inset 0 1px 0 #efe4c5,0 3px 0 #75694c,0 5px 10px #0c21194d}
+.player-shell.has-3d .throw-button:disabled{opacity:.32;box-shadow:none}
+.player-shell.has-3d .call-button{background:linear-gradient(145deg,#d8c99e,#b9a473);color:#29422c;border:1px solid #e4d6b0;box-shadow:inset 0 1px 0 #faefc5,0 3px 0 #756744,0 6px 12px #102a1955;min-height:48px}
+.player-shell.has-3d .call-button:active:not(:disabled),.player-shell.has-3d .throw-button:active:not(:disabled){transform:translateY(2px);box-shadow:inset 0 1px 5px #7d754655,0 1px 0 #756744}
+.player-shell.has-3d .call-button:disabled{background:#a8b59714;border:1px solid #b8c49a2b;color:#bdc8a18c;box-shadow:inset 0 1px 4px #061e1538}
+.player-shell.has-3d .phone-footer{color:#b3bf96}.player-shell.has-3d .preview-label{color:#b8c49d;padding-top:10px;margin-bottom:0}
+.player-shell.has-3d .wallet-stack:focus-visible{outline-color:#d7c69b}
+.saved-tables{display:flex;flex-direction:column;align-items:flex-start;margin-top:10px}
+
+@media(max-width:580px){.table-stage.has-3d .pot-center:has(.pot-chips) .pot-number{font-size:34px}.table-stage.has-3d .pot-chips{height:98px}.table-stage.has-3d .pot-center{width:160px}.table-stage.has-3d .pot-detail{font-size:7px;max-width:155px}.table-stage.has-3d .pot-center:has(.pot-chips){top:56%}.join-card .join-box{float:none;margin:20px 0 0;gap:21px}.join-card .qr{width:91px;height:91px}.join-card .room-code{font-size:29px}.player-shell.has-3d .chip-mat{height:234px}.player-shell.has-3d .phone-pot{margin-left:-24px;margin-right:-24px}}
+@media(max-width:360px){.player-shell.has-3d .player-top{margin:0 -18px;padding:0 18px}.player-shell.has-3d .phone-pot{margin-left:-18px;margin-right:-18px}}
