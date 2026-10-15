@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A physical poker chip companion for one laptop and up to four phones.",
+  "description": "A physical poker chip companion for one laptop and multiple phones.",
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",

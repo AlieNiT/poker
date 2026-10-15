@@ -1,8 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
 export const SEATS = ['bottom', 'left', 'top', 'right'];
+export const seatsFor = room => room.seatIds || SEATS;
+export const seatAngle = (room, seat) => Math.PI / 2 + seatsFor(room).indexOf(seat) * 2 * Math.PI / seatsFor(room).length;
+export function snapshot(room) {
+  const { undoHistory, processed, revision, ...state } = room;
+  return {...structuredClone(state), restoreRevision: revision};
+}
+export function rememberAction(room, before) {
+  room.undoHistory = [...(room.undoHistory || []), before].slice(-2);
+}
 export function createRoom(code, hostToken) {
-  return { code, hostToken, name: 'The home game', hand: 1, startingStack: 1000,
+  return { code, hostToken, name: 'The home game', hand: 1, startingStack: 600, playerCount: 6, seatIds: Array.from({length:6}, (_,i) => `seat-${i}`), setupComplete: false, undoHistory: [],
     players: [], history: [], lastEvent: null, processed: [], createdAt: Date.now(), revision: 0 };
 }
 export function potsFor(room) {
@@ -31,8 +40,8 @@ function integer(value, min = 1, max = 1000000) {
 export function joinRoom(room, { name, seat }, token = randomUUID()) {
   name = typeof name === 'string' ? name.trim().slice(0, 20) : '';
   if (!name) throw new Error('Enter your name to take a seat.');
-  if (room.players.length >= 4) throw new Error('This table already has four players.');
-  if (!SEATS.includes(seat) || room.players.some(p => p.seat === seat)) throw new Error('That seat has just been taken. Choose another.');
+  if (room.players.length >= seatsFor(room).length) throw new Error('Every seat at this table is taken.');
+  if (!seatsFor(room).includes(seat) || room.players.some(p => p.seat === seat)) throw new Error('That seat has just been taken. Choose another.');
   if (room.players.some(p => p.contribution > 0)) throw new Error('Wait for the next hand before joining.');
   const player = { id: randomUUID(), token, name, seat, balance: room.startingStack, debt: 0, contribution: 0, inHand: true };
   room.players.push(player);
@@ -51,11 +60,24 @@ export function bet(room, player, amount, isCall = false, chipValues, chipCounts
   }
   player.balance -= amount;
   player.contribution += amount;
-  log(room, `${player.name} ${isCall ? 'called' : 'threw'} ${amount.toLocaleString()}${player.balance === 0 ? ' · all in' : ''}`, 'bet', { playerId: player.id, seat: player.seat, amount, ...(chipValues?{chipValues}:{}), ...(chipCounts?{chipCounts}:{}) });
+  log(room, `${player.name} ${isCall ? 'called' : 'threw'} ${amount.toLocaleString()}${player.balance === 0 ? ' · all in' : ''}`, 'bet', { playerId: player.id, seat: player.seat, angle: seatAngle(room, player.seat), amount, ...(chipValues?{chipValues}:{}), ...(chipCounts?{chipCounts}:{}) });
 }
 export function hostAction(room, action, data) {
   const player = room.players.find(p => p.id === data.playerId);
   switch (action) {
+    case 'undo': {
+      const before = room.undoHistory?.pop();
+      if (!before) throw new Error('There are no actions left to undo.');
+      const revision = room.revision, undoVersion = room.undoVersion || 0;
+      for (const key of Object.keys(room)) if (!['undoHistory','processed','revision'].includes(key)) delete room[key];
+      Object.assign(room, structuredClone(before));
+      room.revision = revision;
+      room.undoVersion = undoVersion + 1;
+      const restoreRevision = room.restoreRevision;
+      delete room.restoreRevision;
+      log(room, 'Last action undone', 'undo', {restoreRevision});
+      break;
+    }
     case 'loan': {
       if (!player) throw new Error('Choose a player.');
       const amount = integer(data.amount);
@@ -89,7 +111,7 @@ export function hostAction(room, action, data) {
       for (const [index, pot] of pots.entries()) {
         const winners = pot.refund ? [pot.refund] : data.winners?.[pot.id];
         if (!Array.isArray(winners) || !winners.length || new Set(winners).size !== winners.length || winners.some(id => !pot.refund && !pot.eligible.includes(id))) throw new Error('Choose an eligible winner for every pot.');
-        const sorted = room.players.filter(p => winners.includes(p.id)).sort((a,b) => SEATS.indexOf(a.seat) - SEATS.indexOf(b.seat));
+        const sorted = room.players.filter(p => winners.includes(p.id)).sort((a,b) => seatsFor(room).indexOf(a.seat) - seatsFor(room).indexOf(b.seat));
         if (sorted.length !== winners.length) throw new Error('A selected player is no longer at the table.');
         sorted.forEach((p, i) => {
           const amount = Math.floor(pot.amount / sorted.length) + (i < pot.amount % sorted.length ? 1 : 0);
@@ -103,8 +125,14 @@ export function hostAction(room, action, data) {
       break;
     }
     case 'settings': {
+      const startingStack = data.startingStack === undefined ? room.startingStack : integer(data.startingStack, 1, 100000);
+      const playerCount = data.playerCount === undefined ? seatsFor(room).length : integer(data.playerCount, 2, 20);
+      if (playerCount !== seatsFor(room).length && room.players.length) throw new Error('Choose the player count before players join.');
       if (typeof data.name === 'string' && data.name.trim()) room.name = data.name.trim().slice(0, 32);
-      if (data.startingStack !== undefined) room.startingStack = integer(data.startingStack, 1, 100000);
+      room.startingStack = startingStack;
+      if (playerCount !== seatsFor(room).length) room.seatIds = Array.from({length:playerCount}, (_,i) => `seat-${i}`);
+      room.playerCount = playerCount;
+      room.setupComplete = true;
       log(room, 'Table settings updated');
       break;
     }
@@ -117,8 +145,9 @@ export function hostAction(room, action, data) {
     }
     case 'demo': {
       if (room.players.length) throw new Error('Use a new empty table for a practice game.');
-      [['Alex','bottom'], ['Jamie','left'], ['Sam','top'], ['Charlie','right']].forEach(([name, seat]) => joinRoom(room, {name, seat}));
-      [125,125,75,125].forEach((amount,i) => bet(room, room.players[i], amount));
+      seatsFor(room).forEach((seat, i) => joinRoom(room, {name: ['Alex','Jamie','Sam','Charlie','Robin','Taylor','Morgan','Casey'][i] || `Player ${i + 1}`, seat}));
+      room.setupComplete = true;
+      room.players.forEach((player, i) => bet(room, player, Math.min(player.balance, i === 2 ? 75 : 125)));
       room.demo = true;
       log(room, 'Practice table ready · try a player’s chip surface');
       break;

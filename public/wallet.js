@@ -6,7 +6,7 @@ export function validWallet(wallet, balance) {
 export function makeWallet(balance) {
   let remaining = balance;
   const counts = {1:0,5:0,25:0,100:0};
-  for (const [value, target] of [[1,20],[5,12],[25,8]]) {
+  for (const [value, target] of [[1,10],[5,8],[25,6]]) {
     counts[value] = Math.min(target, Math.floor(remaining / value));
     remaining -= counts[value] * value;
   }
@@ -14,7 +14,17 @@ export function makeWallet(balance) {
     counts[value] += Math.floor(remaining / value);
     remaining %= value;
   }
-  return counts;
+  return rollover(counts);
+}
+export function rollover(wallet) {
+  const next = {...wallet};
+  for (let i = 0; i < denominations.length - 1; i++) {
+    const value = denominations[i], higher = denominations[i + 1], ratio = higher / value;
+    const groups = Math.max(0, Math.ceil((next[value] - 10) / ratio));
+    next[value] -= groups * ratio;
+    next[higher] += groups;
+  }
+  return next;
 }
 export function chipCounts(wallet, chips = []) {
   const counts = {...wallet};
@@ -38,7 +48,7 @@ export function spend(wallet, amount) {
       next[small] += Math.floor(change / small); change %= small;
     }
   }
-  return next;
+  return rollover(next);
 }
 export function exchange(wallet, target) {
   if (!denominations.includes(target) || wallet[target] || walletValue(wallet) < target) return null;
@@ -47,11 +57,12 @@ export function exchange(wallet, target) {
   if (larger) {
     next[larger]--; next[target] += Math.floor(larger / target);
   } else next[target]++;
+  const normalized = rollover(next);
   const give = {}, receive = {};
   for (const v of denominations) {
-    if (next[v] < wallet[v]) give[v] = wallet[v] - next[v];
-    if (next[v] > wallet[v]) receive[v] = next[v] - wallet[v];
+    if (normalized[v] < wallet[v]) give[v] = wallet[v] - normalized[v];
+    if (normalized[v] > wallet[v]) receive[v] = normalized[v] - wallet[v];
   }
-  return {target, wallet:next, give, receive};
+  return {target, wallet:normalized, give, receive};
 }
 export const exchanges = wallet => denominations.map(v => exchange(wallet, v)).filter(Boolean);

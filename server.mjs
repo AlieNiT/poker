@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomBytes, randomUUID } from 'node:crypto';
 import QRCode from 'qrcode';
-import { createRoom, joinRoom, bet, hostAction, potsFor } from './game.mjs';
+import { createRoom, joinRoom, bet, hostAction, potsFor, seatsFor, snapshot, rememberAction } from './game.mjs';
 
 const port = Number(process.env.PORT || 3000);
 const dataDir = path.resolve(process.env.DATA_DIR || '.data');
@@ -28,8 +28,8 @@ function persist() {
   }).catch(e => console.error('Could not save tables:', e.message));
 }
 function publicState(room) {
-  const { hostToken, processed, ...state } = room;
-  return { ...state, players: room.players.map(({ token, ...p }) => ({ ...p, connected: (presence.get(`${room.code}:${p.id}`) || 0) > 0 })), pots: potsFor(room) };
+  const { hostToken, processed, undoHistory, ...state } = room;
+  return { ...state, seatIds: seatsFor(room), playerCount: seatsFor(room).length, undoCount: undoHistory?.length || 0, players: room.players.map(({ token, ...p }) => ({ ...p, connected: (presence.get(`${room.code}:${p.id}`) || 0) > 0 })), pots: potsFor(room) };
 }
 function broadcast(room) {
   const message = `data: ${JSON.stringify(publicState(room))}\n\n`;
@@ -70,9 +70,11 @@ const server = http.createServer(async (req, res) => {
       const room = rooms.get(match[1]);
       if (!room) return json(res, 404, { error: 'Table not found. Check the table code with your host.' });
       const route = match[2];
-      if (req.method === 'GET' && route === 'preview') return json(res, 200, { name: room.name, code: room.code, seats: room.players.map(p => ({ name:p.name, seat:p.seat })), handInProgress: room.players.some(p => p.contribution > 0) });
+      if (req.method === 'GET' && route === 'preview') return json(res, 200, { name: room.name, code: room.code, seatIds: seatsFor(room), ready: room.setupComplete !== false, seats: room.players.map(p => ({ name:p.name, seat:p.seat })), handInProgress: room.players.some(p => p.contribution > 0) });
       if (req.method === 'POST' && route === 'join') {
-        const player = joinRoom(room, await body(req)); persist(); broadcast(room);
+        if (room.setupComplete === false) throw new Error('The host is still setting up this table.');
+        const before = snapshot(room);
+        const player = joinRoom(room, await body(req)); rememberAction(room, before); persist(); broadcast(room);
         return json(res, 201, { token: player.token, playerId: player.id, code: room.code, state: publicState(room) });
       }
       const auth = authenticate(req, room, url);
@@ -101,6 +103,7 @@ const server = http.createServer(async (req, res) => {
         const data = await body(req);
         if (typeof data.requestId !== 'string' || data.requestId.length > 64) return json(res, 400, {error:'This action needs a request ID.'});
         if (room.processed.includes(data.requestId)) return json(res, 200, { state: publicState(room) });
+        const before = snapshot(room);
         if (['bet','call','all-in'].includes(data.action)) {
           const player = auth.player || (auth.host && room.demo ? room.players.find(p => p.id === data.playerId) : null);
           if (!player) return json(res, 403, { error: 'Only the seated player can throw their chips.' });
@@ -109,6 +112,7 @@ const server = http.createServer(async (req, res) => {
           if (!auth.host) return json(res, 403, { error: 'Only the laptop host can manage the table.' });
           hostAction(room, data.action, data);
         }
+        if (data.action !== 'undo') rememberAction(room, before);
         room.processed.push(data.requestId); room.processed = room.processed.slice(-500);
         persist(); broadcast(room); return json(res, 200, { state: publicState(room) });
       }

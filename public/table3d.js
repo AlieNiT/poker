@@ -304,7 +304,7 @@ class Surface {
       const endX=(Math.random()-.5)*2,endZ=.75+Math.random()*.8;
       if(incoming){
         const starts={top:[0,-this.boundDepth/2+.6],bottom:[0,this.boundDepth/2-.6],left:[-this.boundWidth/2+.6,0],right:[this.boundWidth/2-.6,0]};
-        const [x,z]=starts[event.seat]||[0,-3];
+        const [x,z]=Number.isFinite(event.angle)?[Math.cos(event.angle)*(this.boundWidth/2-.6),Math.sin(event.angle)*(this.boundDepth/2-.6)]:starts[event.seat]||[0,-3];
         this.addChip(`pot-${event.id}-${i}`,value,{x:x+(i%3)*.04,y:.55+i*.04,z:z+(i%2)*.06,velocity:[(endX-x)/.7,3.2+Math.random()*.35,(endZ-z)/.7],spin:[(Math.random()-.5)*2,Math.random()*3,(Math.random()-.5)*2]},{kind:'pot'});
       }else this.addChip(`pot-rest-${i}`,value,{x:endX,y:.7+Math.floor(i/4)*.12,z:endZ,rotation:Math.PI/2+(Math.random()-.5)*.25},{kind:'pot'});
     });

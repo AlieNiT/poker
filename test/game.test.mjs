@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createRoom,joinRoom,bet,hostAction,potsFor} from '../game.mjs';
+import {createRoom,joinRoom,bet,hostAction,potsFor,snapshot,rememberAction} from '../game.mjs';
 
-function table(count=4){const r=createRoom('ABCD','host');['bottom','left','top','right'].slice(0,count).forEach((seat,i)=>joinRoom(r,{name:`Player ${i+1}`,seat}));return r;}
+function table(count=4){const r=createRoom('ABCD','host');r.seatIds=['bottom','left','top','right'];r.startingStack=1000;['bottom','left','top','right'].slice(0,count).forEach((seat,i)=>joinRoom(r,{name:`Player ${i+1}`,seat}));return r;}
 function total(r){return r.players.reduce((n,p)=>n+p.balance+p.contribution,0);}
 test('four unique seats; joining during a hand is rejected',()=>{
-  const r=table();assert.throws(()=>joinRoom(r,{name:'Fifth',seat:'bottom'}),/four players/);
+  const r=table();assert.throws(()=>joinRoom(r,{name:'Fifth',seat:'bottom'}),/taken/);
   const two=table(2);assert.throws(()=>joinRoom(two,{name:'Duplicate',seat:'bottom'}),/taken/);
   bet(two,two.players[0],5);assert.throws(()=>joinRoom(two,{name:'Late',seat:'top'}),/next hand/);
 });
@@ -61,4 +61,46 @@ test('compact chip counts accept large selections and reject mismatched exchange
   bet(room,player,300,false,undefined,{1:300,5:0,25:0,100:0});
   assert.equal(player.balance,700);assert.equal(room.lastEvent.chipCounts[1],300);
   assert.equal(total(room),2000);
+});
+
+test('new tables default to 600 and support a host-selected table with more than four players',()=>{
+  const room=createRoom('MANY','host');
+  assert.equal(room.startingStack,600);
+  hostAction(room,'settings',{playerCount:9});
+  room.seatIds.forEach((seat,i)=>joinRoom(room,{name:`Guest ${i}`,seat}));
+  assert.equal(room.players.length,9);
+  assert.ok(room.players.every(p=>p.balance===600));
+  assert.throws(()=>joinRoom(room,{name:'Extra',seat:'seat-9'}),/taken/);
+  assert.throws(()=>hostAction(room,'settings',{playerCount:8}),/before players join/);
+  const before=JSON.stringify(room);
+  assert.throws(()=>hostAction(room,'settings',{name:'Changed',startingStack:700,playerCount:1}));
+  assert.equal(JSON.stringify(room),before);
+});
+
+test('undo consumes at most two snapshots and a new action creates only one new undo',()=>{
+  const room=createRoom('UNDO','host');hostAction(room,'settings',{playerCount:6});
+  const player=joinRoom(room,{name:'Alex',seat:room.seatIds[0]});
+  const act=(fn)=>{const before=snapshot(room);fn();rememberAction(room,before);};
+  act(()=>bet(room,room.players[0],25));
+  act(()=>hostAction(room,'loan',{playerId:player.id,amount:100}));
+  act(()=>hostAction(room,'inHand',{playerId:player.id,value:false}));
+  assert.equal(room.undoHistory.length,2);
+  const revision=room.revision;
+  hostAction(room,'undo',{});assert.equal(room.players[0].inHand,true);
+  hostAction(room,'undo',{});assert.equal(room.players[0].balance,575);assert.equal(room.players[0].debt,0);
+  assert.equal(room.undoHistory.length,0);assert.equal(room.undoVersion,2);assert.ok(room.revision>revision);
+  assert.throws(()=>hostAction(room,'undo',{}),/no actions/);
+  act(()=>bet(room,room.players[0],5));assert.equal(room.undoHistory.length,1);
+  hostAction(room,'undo',{});assert.equal(room.players[0].balance,575);assert.equal(room.undoVersion,3);
+  assert.throws(()=>hostAction(room,'undo',{}),/no actions/);
+});
+
+test('undo restores a paid hand including contributions, folds, side pots and hand number',()=>{
+  const room=table(3);[100,200,300].forEach((amount,i)=>bet(room,room.players[i],amount));
+  hostAction(room,'inHand',{playerId:room.players[1].id,value:false});
+  const before=snapshot(room),pots=potsFor(room);
+  hostAction(room,'award',{winners:{'pot-0':[room.players[0].id],'pot-1':[room.players[2].id]}});
+  rememberAction(room,before);hostAction(room,'undo',{});
+  assert.equal(room.hand,1);assert.deepEqual(potsFor(room),pots);
+  assert.deepEqual(room.players,before.players);
 });

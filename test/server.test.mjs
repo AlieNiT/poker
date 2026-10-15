@@ -28,8 +28,9 @@ test('server enforces roles, deduplicates bets, hides credentials and restores t
     const created=await request('/api/rooms',null,{});assert.equal(created.status,201);
     const {code,token:host}=created.data;const route=`/api/rooms/${code}`;
     assert.equal((await request(route)).status,401);
-    const a=(await request(route+'/join',null,{name:'Alice',seat:'bottom'})).data;
-    const b=(await request(route+'/join',null,{name:'Bob',seat:'top'})).data;
+    await request(route+'/action',host,{action:'settings',startingStack:1000,playerCount:4,requestId:'setup'});
+    const a=(await request(route+'/join',null,{name:'Alice',seat:'seat-0'})).data;
+    const b=(await request(route+'/join',null,{name:'Bob',seat:'seat-2'})).data;
     const publicJson=JSON.stringify(a.state);assert.ok(!publicJson.includes(host));assert.ok(!publicJson.includes(a.token));
     assert.equal((await request(route+'/action',a.token,{action:'loan',playerId:a.playerId,amount:500,requestId:'unauthorized'})).status,403);
     assert.equal((await request(route+'/action',host,{action:'bet',playerId:a.playerId,amount:10,requestId:'host-bet'})).status,403);
@@ -54,5 +55,26 @@ test('server enforces roles, deduplicates bets, hides credentials and restores t
     assert.equal(called.data.state.pots[1].refund,a.playerId);
     const paid=await request(route+'/action',host,{action:'award',winners:{'pot-0':[b.playerId]},requestId:'side-pot-award'});
     assert.deepEqual(paid.data.state.players.map(p=>p.balance),[120,1980]);
+    assert.equal(paid.data.state.undoCount,2);
+    assert.ok(!('undoHistory' in paid.data.state));
+    assert.equal((await request(route+'/action',a.token,{action:'undo',requestId:'player-undo'})).status,403);
+    const undo=await request(route+'/action',host,{action:'undo',requestId:'undo-award'});
+    assert.equal(undo.data.state.hand,2);assert.equal(undo.data.state.undoCount,1);
+    assert.deepEqual(undo.data.state.pots.map(p=>p.amount),[1980,120]);
+    const revision=undo.data.state.revision;
+    const retry=await request(route+'/action',host,{action:'undo',requestId:'undo-award'});
+    assert.equal(retry.data.state.revision,revision);assert.equal(retry.data.state.undoCount,1);
+    const secondUndo=await request(route+'/action',host,{action:'undo',requestId:'undo-call'});
+    assert.equal(secondUndo.data.state.undoCount,0);
+    assert.equal((await request(route+'/action',host,{action:'undo',requestId:'too-many-undos'})).status,400);
+    const retryCall=await request(route+'/action',b.token,{action:'call',requestId:'bob-short-call'});
+    assert.equal(retryCall.data.state.undoCount,0);assert.equal(retryCall.data.state.players[1].contribution,0);
+    const newCall=await request(route+'/action',b.token,{action:'call',requestId:'new-call'});
+    assert.equal(newCall.data.state.undoCount,1);
+    await stop();await start();
+    const reloaded=await request(route,host);assert.equal(reloaded.data.state.undoCount,1);
+    const persistedUndo=await request(route+'/action',host,{action:'undo',requestId:'persisted-undo'});
+    assert.equal(persistedUndo.data.state.players[1].contribution,0);
+    assert.equal(persistedUndo.data.state.undoCount,0);
   }finally{if(child?.exitCode===null)await stop();}
 });

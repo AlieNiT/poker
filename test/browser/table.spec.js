@@ -34,18 +34,18 @@ test('full-screen pot and private phones support individual moves, group return,
   // Several 3D clients share Chrome's software renderer in this test.
   test.setTimeout(180000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.setViewportSize({width:1440,height:900});await page.goto('/');
+  await page.setViewportSize({width:1440,height:900});await page.goto('/');await page.getByLabel('Player count').fill('4');await page.getByRole('button',{name:'Save',exact:true}).click();
   await expect(page.locator('.table-stage.has-3d canvas')).toBeVisible();
   const stage=await page.locator('.table-stage').boundingBox();expect(stage).toEqual({x:0,y:0,width:1440,height:900});
-  await expect(page.locator('.host-shell')).toHaveText('0');
+  await expect(page.locator('.pot-number')).toHaveText('0');
   const code=await invitation(page);await page.getByRole('button',{name:'Table controls',exact:true}).click();
   await page.screenshot({path:'/tmp/clubhouse-empty.png'});
   const phones=[];const remotePlayers=[];
-  for(const [i,seat]of ['bottom','left'].entries()){
+  for(const [i,seat]of ['seat-0','seat-1'].entries()){
     const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
     const phone=await context.newPage();phone.on('pageerror',e=>errors.push(e.message));
     await phone.goto(`/join?table=${code}`);await phone.getByLabel('Your name').fill(`Friend ${i+1}`);
-    await phone.locator(`input[name="seat"][value="${seat}"]`).check({force:true});
+    await phone.locator(`[data-pick-seat="${seat}"]`).click();
     await phone.getByRole('button',{name:'Join',exact:true}).click();await expect(phone.locator('.player-shell.has-3d canvas')).toBeVisible();
     await expect(phone.locator('.player-shell')).not.toContainText(`Friend ${i+1}`);
     await expect(phone.locator('#player-pot,[data-action="sound"],.throw-guide,.mat-hint,.player-name')).toHaveCount(0);
@@ -53,7 +53,7 @@ test('full-screen pot and private phones support individual moves, group return,
     await expect(phone.getByRole('button',{name:'Throw chips'})).toHaveCount(0);
     phones.push({phone,context});
   }
-  for(const [i,seat]of ['top','right'].entries()){
+  for(const [i,seat]of ['seat-2','seat-3'].entries()){
     const joined=await page.request.post(`/api/rooms/${code}/join`,{data:{name:`Friend ${i+3}`,seat}});
     expect(joined.ok()).toBeTruthy();remotePlayers.push(await joined.json());
   }
@@ -66,10 +66,10 @@ test('full-screen pot and private phones support individual moves, group return,
   await first.mouse.move(box.x-55,box.y+box.height/2,{steps:5});await first.mouse.up();
   await expect(first.locator('#selection-value')).toHaveText('50');await expect(page.locator('.pot-number')).toHaveText('0');
   await push(first,phones[0].context,'down');await expect(first.locator('.loose-chip')).toHaveCount(0);
-  await expect(first.locator('.player-balance')).toHaveText('1,000');await expect(page.locator('.pot-number')).toHaveText('0');
+  await expect(first.locator('.player-balance')).toHaveText('600');await expect(page.locator('.pot-number')).toHaveText('0');
   await first.locator('.wallet-stack[data-value="25"]').tap();await first.locator('.wallet-stack[data-value="25"]').tap();
   await push(first,phones[0].context,'up');await expect(page.locator('.pot-number')).toHaveText('50');
-  await expect(first.locator('.player-balance')).toHaveText('950');
+  await expect(first.locator('.player-balance')).toHaveText('550');
   await expect(phones[1].phone.locator('#call-button')).toHaveText('Call 50');await phones[1].phone.locator('#call-button').click();
   for(const [i,player]of remotePlayers.entries()){
     const response=await page.request.post(`/api/rooms/${code}/action`,{headers:{Authorization:`Bearer ${player.token}`},data:{action:'call',amount:50,requestId:`browser-call-${i}`}});
@@ -80,11 +80,11 @@ test('full-screen pot and private phones support individual moves, group return,
   await expect(page.locator('.pot-number')).toHaveText('225');await expect(phones[1].phone.locator('#call-button')).toHaveText('Call 25');
   await page.bringToFront();await controls(page);await page.getByRole('button',{name:'Open bank and manage loans'}).click();
   await page.locator('#bank-form input[name="amount"]').fill('100');await page.getByRole('button',{name:'Move chips'}).click();
-  await expect(first.locator('.player-balance')).toHaveText('1,025');
+  await expect(first.locator('.player-balance')).toHaveText('625');
   await page.getByRole('button',{name:'Award the pot'}).click();await page.locator('.winner-options label').first().click();
   await page.getByRole('button',{name:'Award 225',exact:true}).click();
-  await expect(page.locator('.pot-number')).toHaveText('0');await expect(first.locator('.player-balance')).toHaveText('1,250');
-  await first.reload();await expect(first.locator('.player-balance')).toHaveText('1,250');
+  await expect(page.locator('.pot-number')).toHaveText('0');await expect(first.locator('.player-balance')).toHaveText('850');
+  await first.reload();await expect(first.locator('.player-balance')).toHaveText('850');
   await expect(page.locator('.round-tabs,.next-round,.hand-tag')).toHaveCount(0);
   expect(await first.evaluate(()=>document.documentElement.scrollHeight<=innerHeight)).toBe(true);
   expect(errors).toEqual([]);
@@ -93,7 +93,7 @@ test('full-screen pot and private phones support individual moves, group return,
 });
 
 test('hidden controls retain QR, side pots, settings, preview and saved tables',async({page})=>{
-  await page.setViewportSize({width:1440,height:900});await page.goto('/');
+  await page.setViewportSize({width:1440,height:900});await page.goto('/');await page.getByLabel('Player count').fill('4');await page.getByRole('button',{name:'Save',exact:true}).click();
   const code=await invitation(page);await page.getByRole('button',{name:'Practice table',exact:true}).click();
   await expect(page.locator('.pot-number')).toHaveText('450');await page.screenshot({path:'/tmp/clubhouse-practice.png'});
   await page.getByRole('button',{name:'Award the pot'}).click();await expect(page.locator('.award-pot')).toHaveCount(2);
@@ -110,6 +110,7 @@ test('hidden controls retain QR, side pots, settings, preview and saved tables',
   await page.getByRole('button',{name:'Return to the laptop table'}).click();
   await page.getByRole('button',{name:'Table settings',exact:true}).click();await page.getByRole('button',{name:'New table',exact:true}).click();
   await page.getByRole('button',{name:'New table',exact:true}).click();
+  await page.getByRole('button',{name:'Save',exact:true}).click();
   await controls(page);await page.getByRole('button',{name:'Table settings',exact:true}).click();
   await page.getByRole('button',{name:`Friday with friends · ${code}`}).click();await expect(page.locator('.occupied')).toHaveCount(4);
 });

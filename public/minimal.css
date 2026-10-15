@@ -22,13 +22,13 @@ body.table-body{background:#183f2d;overflow:hidden}
 .immersive .occupied .seat-stack{font-size:20px;line-height:1.4;font-weight:500;letter-spacing:-.4px;color:#eee6c7}
 .immersive .empty-seat{width:45px}
 .immersive .empty-avatar{background:#183b263e;border:1px dashed #b9c49c54;color:#c6cbaa;margin:0;box-shadow:none;width:42px;height:42px}
-.immersive .table-controls{position:absolute;top:24px;right:24px;z-index:10;display:flex;align-items:center;gap:10px}
+.immersive .table-controls{position:absolute;top:24px;left:24px;z-index:10;display:flex;align-items:center;gap:10px}
 .immersive .connection{padding:0;font-size:0;width:6px}.immersive .connection i{background:#a2b877;box-shadow:0 0 5px #bfc68b44}.immersive .connection.offline i{background:#d19d71}
 .immersive .icon-button{width:42px;height:42px;border:1px solid #acb58a32;border-radius:10px;background:linear-gradient(145deg,#173b2bda,#0e2e20e3);color:#d1d5b3;box-shadow:inset 0 1px 0 #d7dfb210,0 3px 8px #0c231a33}
 .immersive .icon-button:hover{background:#32543be8;border-color:#b5bf8b66;color:#efe8c7}
 .immersive .icon-button:disabled{opacity:.26;box-shadow:none}
 .immersive .icon-button svg{width:19px;height:19px}
-.controls-drawer{position:absolute;right:0;top:54px;display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid #a4b18428;border-radius:13px;background:#102d21df;box-shadow:0 12px 24px #071c164d}
+.controls-drawer{position:absolute;left:0;top:54px;display:flex;flex-direction:column;gap:8px;padding:8px;border:1px solid #a4b18428;border-radius:13px;background:#102d21df;box-shadow:0 12px 24px #071c164d}
 .immersive .table-award{position:absolute;bottom:24px;right:24px;width:50px;height:50px;border-color:#c6b47857;color:#d3c190;z-index:10}
 .modal h2{margin:8px 0 24px;font-size:23px}.modal{padding-top:30px}.eligibility{padding:12px}.refund-name{display:block;margin-top:10px;font-size:11px;color:#889277}.invite-modal-qr .qr{width:220px;height:220px;padding:10px}.invite-code{margin:15px 0}.invite-code strong{font-size:30px}.copy-field{margin-top:12px}
 .player-shell.minimal-phone{height:100dvh;min-height:0;display:flex;flex-direction:column;padding-bottom:max(20px,env(safe-area-inset-bottom));overflow:hidden}
@@ -49,7 +49,7 @@ body.table-body{background:#183f2d;overflow:hidden}
 .minimal-phone .throw-button{width:46px;height:35px;min-height:35px;padding:7px 12px}
 .minimal-phone .call-button{min-height:48px;margin-top:12px;font-size:14px}
 .join-shell{padding-top:35px}.join-shell>h1{font-size:29px;margin-top:0;margin-bottom:25px}
-@media(max-width:580px){.immersive .seat-top{top:25px!important}.immersive .seat-bottom{bottom:25px!important}.immersive .seat-left{left:21px}.immersive .seat-right{right:21px}.immersive .occupied,.immersive .seat-top.occupied,.immersive .seat-bottom.occupied{grid-template-columns:27px auto;column-gap:7px;min-width:98px;max-width:126px;padding:8px 9px;border-radius:9px}.immersive .occupied .avatar{width:27px;height:27px;font-size:12px}.immersive .occupied .seat-name{font-size:9px;max-width:65px}.immersive .occupied .seat-stack{font-size:15px}.immersive .table-controls{top:20px;right:19px;gap:6px}.immersive .icon-button{width:34px;height:34px;border-radius:8px}.immersive .icon-button svg{width:16px;height:16px}.controls-drawer{top:44px;padding:6px;gap:7px}.immersive .table-award{bottom:20px;right:19px;width:40px;height:40px}.immersive .pot-number,.immersive .table-stage.has-3d .pot-center:has(.pot-chips) .pot-number{font-size:37px}.immersive .pot-center:has(.pot-chips) .pot-number{top:calc(50% - 75px)!important}.minimal-phone.has-3d .chip-mat{height:auto;min-height:235px}}
+@media(max-width:580px){.immersive .seat-top{top:25px!important}.immersive .seat-bottom{bottom:25px!important}.immersive .seat-left{left:21px}.immersive .seat-right{right:21px}.immersive .occupied,.immersive .seat-top.occupied,.immersive .seat-bottom.occupied{grid-template-columns:27px auto;column-gap:7px;min-width:98px;max-width:126px;padding:8px 9px;border-radius:9px}.immersive .occupied .avatar{width:27px;height:27px;font-size:12px}.immersive .occupied .seat-name{font-size:9px;max-width:65px}.immersive .occupied .seat-stack{font-size:15px}.immersive .table-controls{top:20px;left:19px;gap:6px}.immersive .icon-button{width:34px;height:34px;border-radius:8px}.immersive .icon-button svg{width:16px;height:16px}.controls-drawer{top:44px;padding:6px;gap:7px}.immersive .table-award{bottom:20px;right:19px;width:40px;height:40px}.immersive .pot-number,.immersive .table-stage.has-3d .pot-center:has(.pot-chips) .pot-number{font-size:37px}.immersive .pot-center:has(.pot-chips) .pot-number{top:calc(50% - 75px)!important}.minimal-phone.has-3d .chip-mat{height:auto;min-height:235px}}
 @media(max-height:720px){.minimal-phone .phone-pot,.minimal-phone.has-3d .phone-pot{height:70px;min-height:70px}.minimal-phone .player-intro,.minimal-phone.has-3d .player-intro{margin-top:11px;min-height:42px}.minimal-phone .chip-mat,.minimal-phone.has-3d .chip-mat{min-height:190px;margin-top:13px;margin-bottom:5px}.minimal-phone .selection-area,.minimal-phone.has-3d .selection-area{height:112px;min-height:112px}.minimal-phone .selected-tray{height:63px;min-height:63px}.minimal-phone .player-balance{font-size:29px}.minimal-phone .stack-visual .chip{width:51px;height:51px}}
 .minimal-phone .chip-mat,.minimal-phone.has-3d .chip-mat{min-height:260px;margin:10px 0 18px;border:0;border-radius:0;box-shadow:none;overflow:visible}
 .minimal-phone .wallet-stack{width:65px;height:68px}
@@ -76,3 +76,17 @@ body.table-body{background:#183f2d;overflow:hidden}
 .exchange-chips .chip{width:42px;height:42px;flex-shrink:0}
 .exchange-chips .chip>span{font-size:14px}
 .exchange-chips .chip:before{inset:4px}.exchange-chips .chip:after{inset:10px}
+
+/* Seats follow the same clockwise order on the laptop and the join screen. */
+.immersive .ring-seat{position:absolute;right:auto;bottom:auto;transform:translate(-50%,-50%);z-index:4}
+.immersive .ring-seat.occupied{min-width:112px;max-width:150px}
+.immersive .ring-seat .avatar{background:#45624a;color:#eee6c7}
+.undo-button{position:relative}.undo-button small{position:absolute;right:-4px;top:-4px;display:grid;place-items:center;min-width:17px;height:17px;border-radius:50%;background:#45624a;color:#eee6c7;font-size:10px;pointer-events:none}
+.undo-button:disabled{opacity:.35;cursor:default}.undo-button:focus-visible,.seat-arc:focus-visible{outline:2px solid #c6b478;outline-offset:3px}
+.oval-seat-picker{display:block;width:100%;height:auto;aspect-ratio:360/280;max-width:400px;margin:0 auto 12px;overflow:visible}
+.picker-felt{fill:#244f39;stroke:#aa976d;stroke-width:4}.picker-title{fill:#efe8ce;font-size:15px;font-weight:600;letter-spacing:3px}.picker-note{fill:#87937c;font-size:11px}
+.seat-arc{cursor:pointer;outline:none}.seat-arc path{fill:#e2e8d8;stroke:#aab79a;stroke-width:1;transition:fill .15s}.seat-arc text{fill:#38503b;font-size:13px;font-weight:600;pointer-events:none}
+.seat-arc:hover path,.seat-arc:focus-visible path{fill:#c5d4b4;stroke:#6a805d;stroke-width:2}.seat-arc[aria-checked="true"] path{fill:#315e43;stroke:#b49c60;stroke-width:2}.seat-arc[aria-checked="true"] text{fill:#fff5d9}
+.seat-arc[aria-disabled="true"]{cursor:default}.seat-arc[aria-disabled="true"] path{fill:#c9cebf;stroke:#bec5b3}.seat-arc[aria-disabled="true"] text{fill:#939c88}
+@media(max-width:580px){.immersive .ring-seat.occupied{min-width:80px;max-width:106px;padding:7px;column-gap:5px}.immersive .ring-seat .seat-name{max-width:55px}}
+@media(prefers-reduced-motion:reduce){.seat-arc path{transition:none}}

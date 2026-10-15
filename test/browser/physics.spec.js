@@ -27,6 +27,7 @@ test('picked chips follow the finger silently, drop on release, and still throw 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
+  await page.getByRole('button',{name:'Save',exact:true}).click();
   await expect(page.locator('.table-stage.has-3d canvas')).toBeVisible();
   await observePhysics(page);
   const code = await page.evaluate(() => JSON.parse(localStorage.getItem('clubhouse-host')).code);
@@ -35,7 +36,7 @@ test('picked chips follow the finger silently, drop on release, and still throw 
   phone.on('pageerror', error => errors.push(error.message));
   await phone.goto(`/join?table=${code}`);
   await phone.getByLabel('Your name').fill('Guest');
-  await phone.locator('input[name="seat"][value="bottom"]').check({force: true});
+  await phone.locator('[data-pick-seat="seat-0"]').click();
   await observePhysics(phone);
   await phone.getByRole('button', {name: 'Join', exact: true}).click();
   await expect(phone.locator('.player-shell.has-3d canvas')).toBeVisible();

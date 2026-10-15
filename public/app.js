@@ -1,11 +1,12 @@
 import {mountHost3D,mountPhone3D,movePhone3D} from './table3d.js';
 import {playChipSound,unlockChipSound} from './chip-sound.js';
-import {denominations,makeWallet,validWallet,chipCounts,walletValue,spend,exchanges,exchange} from './wallet.js';
+import {denominations,makeWallet,validWallet,chipCounts,walletValue,spend,exchanges,exchange,rollover} from './wallet.js';
 import {fetchJSON,submitAction} from './requests.js';
 
 const $ = (s, root = document) => root.querySelector(s);
 const app = $('#app');
-const seats = ['bottom', 'left', 'top', 'right'];
+const seats = () => state.seatIds;
+const seatAngle = seat => Math.PI / 2 + seats().indexOf(seat) * Math.PI * 2 / seats().length;
 const fmt = n => Number(n).toLocaleString();
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icons = {
@@ -32,7 +33,7 @@ const chip = (value, extra = '') => `<span class="chip chip-${value} ${extra}"><
 let session, state, eventSource, network, online = true, busy = false, previewId = null;
 let selected = [], wallet = {}, walletBalance = -1, positions = {}, lastEventId = null, muted = false;
 let modalKind, focusReturn, toastTimer, gesture, controlsOpen = false, nextChipId = 0;
-let walletOwner, pendingAction;
+let walletOwner, pendingAction, walletUndoVersion = 0;
 const touches = new Map();
 
 function save(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
@@ -55,6 +56,12 @@ function apiHeaders(extra) { return {'Content-Type':'application/json', ...(sess
 function pendingKey() { return `clubhouse-pending-${session.code}-${previewId || session.playerId || 'host'}`; }
 function acceptState(next) {
   if (state?.code === next.code && next.revision < state.revision) return;
+  if (walletOwner && currentPlayer() && state?.code === next.code) {
+    const trail = stored(`${walletOwner}-history`) || {};
+    trail[state.revision] = chipCounts(wallet, selected);
+    const revisions = Object.keys(trail).map(Number).sort((a,b) => b-a);
+    save(`${walletOwner}-history`, Object.fromEntries(revisions.slice(0,60).map(r => [r, trail[r]])));
+  }
   state=next; rememberTable(); render();
 }
 function saveWallet() {
@@ -106,7 +113,9 @@ async function newTable() {
 function connect() {
   rememberTable();
   lastEventId = state.lastEvent?.id;
-  render(); eventSource?.close();
+  render();
+  if (session.host && state.setupComplete === false) showModal('setup');
+  eventSource?.close();
   eventSource = new EventSource(`/api/rooms/${session.code}/events?token=${encodeURIComponent(session.token)}`);
   eventSource.onopen = () => {
     setConnection(true);
@@ -137,8 +146,10 @@ function joinUrl() {
 }
 function playerSeat(seat) {
   const p = state.players.find(p => p.seat === seat);
-  if (!p) return `<button class="seat seat-${seat} empty-seat" data-action="invite" aria-label="Invite a player to the ${seat} seat"><span class="empty-avatar">${icon('plus')}</span></button>`;
-  return `<button class="seat seat-${seat} occupied ${!p.inHand ? 'out' : ''}" data-action="player" data-id="${p.id}" aria-label="Manage ${esc(p.name)}"><span class="avatar avatar-${seat}">${esc(p.name.slice(0,1).toUpperCase())}<i class="presence ${p.connected || state.demo ? 'on' : ''}"></i></span><span class="seat-name">${esc(p.name)}</span><span class="seat-stack">${fmt(p.balance)}</span></button>`;
+  const angle = seatAngle(seat);
+  const style = `left:${50 + Math.cos(angle)*39}%;top:${50 + Math.sin(angle)*36}%;`;
+  if (!p) return `<button style="${style}" class="seat ring-seat empty-seat" data-action="invite" aria-label="Invite a player to seat ${seats().indexOf(seat)+1}"><span class="empty-avatar">${icon('plus')}</span></button>`;
+  return `<button style="${style}" class="seat ring-seat occupied ${!p.inHand ? 'out' : ''}" data-action="player" data-id="${p.id}" aria-label="Manage ${esc(p.name)}"><span class="avatar avatar-${seat}">${esc(p.name.slice(0,1).toUpperCase())}<i class="presence ${p.connected || state.demo ? 'on' : ''}"></i></span><span class="seat-name">${esc(p.name)}</span><span class="seat-stack">${fmt(p.balance)}</span></button>`;
 }
 function potChips() {
   const total = totalPot(); if(!total) return '';
@@ -152,12 +163,13 @@ function renderHost() {
   app.innerHTML = `<div class="host-shell immersive" aria-label="${esc(state.name)}">
     <main class="table-stage">
       <div class="poker-table"><div class="felt"><div class="table-stitch"></div><div class="pot-center"><div class="pot-number" aria-label="Pot: ${fmt(pot)}">${fmt(pot)}</div>${potChips()}</div></div></div>
-      ${seats.map(playerSeat).join('')}<div class="flight-layer"></div>
+      ${seats().map(playerSeat).join('')}<div class="flight-layer"></div>
     </main>
     <nav class="table-controls" aria-label="Table controls">
       ${connection()}
       <button class="icon-button controls-toggle" data-action="controls" aria-label="Table controls" aria-expanded="${controlsOpen}" title="Table controls">${icon(controlsOpen?'close':'gear')}</button>
       <div class="controls-drawer" ${controlsOpen?'':'hidden'}>
+        <button class="icon-button undo-button" data-action="undo" aria-label="Undo last action" title="Undo last action" ${state.undoCount?'':'disabled'}>${icon('history')}<small>${state.undoCount || 0}</small></button>
         ${control('invite','users','Invite players')}
         ${control('bank','bank','Open bank and manage loans')}
         ${control('settings','gear','Table settings')}
@@ -173,6 +185,9 @@ function animateThrow(seat, amount) {
   const layer = $('.flight-layer');
   if (!layer) return;
   const pile = document.createElement('div'); pile.className = `flying-chips from-${seat}`;
+  const angle = seatAngle(seat);
+  pile.style.setProperty('--from-x', `${Math.cos(angle)*innerWidth/2}px`);
+  pile.style.setProperty('--from-y', `${Math.sin(angle)*innerHeight/2}px`);
   pile.innerHTML = [25,5,100,25,1].map((v,i)=>`<span style="--i:${i}">${chip(v)}</span>`).join('') + `<b>+${fmt(amount)}</b>`;
   layer.append(pile); setTimeout(()=>pile.remove(),1200);
 }
@@ -184,10 +199,19 @@ function renderPlayer() {
   document.body.classList.add('player-body');
   if (!p) { app.innerHTML = `<div class="loading"><a class="button primary" href="/join?table=${session.code}">Rejoin</a></div>`; return; }
   const owner=`clubhouse-wallet-${session.code}-${p.id}`;
+  if (walletOwner === owner && walletUndoVersion !== (state.undoVersion || 0)) {
+    resetGesture();
+    const trail = stored(`${owner}-history`) || {};
+    const revision = Object.keys(trail).map(Number).filter(r => r <= state.lastEvent?.restoreRevision).sort((a,b) => b-a)[0];
+    const restored = trail[revision];
+    wallet = validWallet(restored, p.balance) ? rollover(restored) : makeWallet(p.balance);
+    selected = []; walletBalance = p.balance;
+  }
+  walletUndoVersion = state.undoVersion || 0;
   if(walletOwner!==owner || walletBalance<0){
     resetGesture(); walletOwner=owner;
     const saved=stored(owner);
-    wallet=validWallet(saved,p.balance)?saved:makeWallet(p.balance);selected=[];walletBalance=p.balance;
+    wallet=validWallet(saved,p.balance)?rollover(saved):makeWallet(p.balance);selected=[];walletBalance=p.balance;
   }else if(walletBalance!==p.balance){
     const change=p.balance-walletBalance;
     if(change<0){
@@ -219,6 +243,7 @@ function renderPlayer() {
 }
 function updateSelection() {
   const p = currentPlayer(); if (!p || !$('.player-shell')) return;
+  if (!gesture) wallet = rollover(wallet);
   const amount = selected.reduce((s,c)=>s+c.value,0);
   $('#selection-value').textContent=amount?fmt(amount):'';
   const signature=selected.map(c=>c.id).join(',');
@@ -278,13 +303,37 @@ async function action(name, extra = {}) {
   finally { busy=false; updateSelection(); }
 }
 
+function seatPicker(table) {
+  const ids = table?.seatIds || [];
+  const point = (angle, rx, ry) => `${180 + Math.cos(angle)*rx},${140 + Math.sin(angle)*ry}`;
+  const arcs = ids.map((seat, i) => {
+    const angle = Math.PI/2 + i*Math.PI*2/ids.length;
+    const half = Math.PI/ids.length - .025;
+    const start = angle-half, end = angle+half;
+    const taken = table.seats.find(p => p.seat === seat);
+    const path = `M ${point(start,168,116)} A 168 116 0 0 1 ${point(end,168,116)} L ${point(end,120,72)} A 120 72 0 0 0 ${point(start,120,72)} Z`;
+    return `<g class="seat-arc" data-pick-seat="${seat}" role="radio" aria-checked="false" aria-disabled="${!!taken}" tabindex="${taken?-1:0}" aria-label="Seat ${i+1}${taken?`: ${esc(taken.name)}, taken`:''}"><path d="${path}"/><text x="${180+Math.cos(angle)*144}" y="${140+Math.sin(angle)*94}" text-anchor="middle" dominant-baseline="central">${i+1}</text><title>${taken?esc(taken.name):`Seat ${i+1}`}</title></g>`;
+  }).join('');
+  return `<input type="hidden" name="seat"><svg class="oval-seat-picker" viewBox="0 0 360 280" role="radiogroup" aria-label="Choose your seat around the table"><ellipse cx="180" cy="140" rx="110" ry="62" class="picker-felt"/><text x="180" y="135" text-anchor="middle" class="picker-title">TABLE</text><text x="180" y="153" text-anchor="middle" class="picker-note">Choose your seat</text>${arcs}<text x="180" y="274" text-anchor="middle" class="picker-note">Laptop on this side</text></svg>`;
+}
+
 async function renderJoin(code = '') {
   document.body.classList.add('player-body');
   let table;
   if(code) { try { table = await api(`/api/rooms/${encodeURIComponent(code)}/preview`); } catch(e) { toast(e.message,true); } }
-  app.innerHTML=`<div class="join-shell"><h1>Join table</h1><form id="join-form"><label>Table code<input name="code" value="${esc(code)}" maxlength="4" required autocapitalize="characters" autocomplete="off" pattern="[a-zA-Z0-9]{4}"></label><label>Your name<input name="name" maxlength="20" required autocomplete="given-name"></label><fieldset><legend>Seat</legend><div class="seat-picker">${seats.map((seat,i)=>{const taken=table?.seats.find(p=>p.seat===seat);return `<label class="pick-seat pick-${seat} ${taken?'taken':''}"><input type="radio" name="seat" value="${seat}" ${taken?'disabled':''} required><span>${['South','West','North','East'][i]}${taken?`<small>${esc(taken.name)}</small>`:''}</span></label>`;}).join('')}<div class="picker-laptop">${icon('expand')}</div></div></fieldset><button class="button primary join-submit" type="submit" ${table?.handInProgress?'disabled':''}>${table?.handInProgress?'Hand in progress':'Join'} ${icon('arrow')}</button></form></div>`;
+  app.innerHTML=`<div class="join-shell"><h1>Join table</h1><form id="join-form"><label>Table code<input name="code" value="${esc(code)}" maxlength="4" required autocapitalize="characters" autocomplete="off" pattern="[a-zA-Z0-9]{4}"></label><label>Your name<input name="name" maxlength="20" required autocomplete="given-name"></label><fieldset><legend>Seat</legend>${seatPicker(table)}</fieldset><button class="button primary join-submit" type="submit" ${table?.handInProgress || !table?.ready?'disabled':''}>${!table?.ready?'Waiting for table setup':table?.handInProgress?'Hand in progress':'Join'} ${icon('arrow')}</button></form></div>`;
+  document.querySelectorAll('[data-pick-seat]').forEach(button => {
+    const pick = () => {
+      if (button.getAttribute('aria-disabled') === 'true') return;
+      $('input[name="seat"]').value = button.dataset.pickSeat;
+      document.querySelectorAll('[data-pick-seat]').forEach(node => node.setAttribute('aria-checked', String(node === button)));
+    };
+    button.addEventListener('click', pick);
+    button.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); pick(); } });
+  });
   $('#join-form').addEventListener('submit',async e=>{
     e.preventDefault(); const form=new FormData(e.target); const code=String(form.get('code')).trim().toUpperCase();
+    if (!form.get('seat')) { toast('Choose your seat around the table.',true); return; }
     const button=$('.join-submit'); button.disabled=true; button.textContent='…';
     try {
       const result=await api(`/api/rooms/${code}/join`,{method:'POST',body:JSON.stringify({name:form.get('name'),seat:form.get('seat')})});
@@ -315,10 +364,10 @@ function showModal(kind, id) {
   } else if(kind==='bank'||kind==='player') {
     title=p?p.name:'Bank';
     content=`<div class="bank-players">${(p?[p]:state.players).map(p=>`<div class="bank-player"><span class="small-avatar avatar-${p.seat}">${esc(p.name[0])}</span><div><strong>${esc(p.name)}</strong><span>${fmt(p.balance)} · Loan ${fmt(p.debt)}</span></div>${state.demo?`<button class="icon-button" data-action="preview" data-id="${p.id}" aria-label="Preview ${esc(p.name)}’s phone">${icon('phone')}</button>`:''}</div>`).join('')}</div>${state.players.length?`<form id="bank-form"><label>Player<select name="playerId">${state.players.map(pl=>`<option value="${pl.id}" ${pl.id===id?'selected':''}>${esc(pl.name)}</option>`).join('')}</select></label><div class="form-columns"><label>Action<select name="action"><option value="loan">Loan</option><option value="repay">Repayment</option></select></label><label>Amount<input type="number" name="amount" min="1" max="1000000" step="1" value="500" required></label></div><div class="amount-presets">${[100,500,1000].map(n=>`<button type="button" data-action="amount" data-amount="${n}">${fmt(n)}</button>`).join('')}</div><button class="button primary modal-submit" type="submit">${icon('bank')} Move chips</button></form>`:''}${p?`<div class="player-manage"><button class="subtle-button" data-action="inHand" data-id="${p.id}" data-value="${!p.inHand}">${p.inHand?'Out':'In'}</button><button class="danger-link" data-action="remove" data-id="${p.id}" ${totalPot()?'disabled':''}>Release seat</button></div>`:''}`;
-  } else if(kind==='settings') {
-    title='Table settings';
+  } else if(kind==='settings'||kind==='setup') {
+    title=kind === 'setup'?'Set up your table':'Table settings';
     const savedTables=Object.values(stored('clubhouse-tables')||{}).filter(t=>t.code!==session.code);
-    content=`<form id="settings-form"><label>Table name<input name="name" value="${esc(state.name)}" maxlength="32" required></label><label>Starting chips<input type="number" name="startingStack" value="${state.startingStack}" min="1" max="100000" required></label><button class="button primary modal-submit" type="submit">Save ${icon('check')}</button></form>${savedTables.length?`<div class="new-table-area"><h3>Saved tables</h3><div class="saved-tables">${savedTables.map(t=>`<button class="subtle-button" data-action="resume-table" data-code="${t.code}">${esc(t.name)} · ${t.code} ${icon('arrow')}</button>`).join('')}</div></div>`:''}<div class="new-table-area"><button class="button secondary" data-action="new-confirm">New table ${icon('arrow')}</button></div>`;
+    content=`<form id="settings-form"><label>Table name<input name="name" value="${esc(state.name)}" maxlength="32" required></label><label>Player count<input name="playerCount" type="number" min="2" max="20" step="1" value="${state.playerCount}" ${state.players.length?'disabled':''} required></label><label>Starting chips<input type="number" name="startingStack" value="${state.startingStack}" min="1" max="100000" required></label><button class="button primary modal-submit" type="submit">Save ${icon('check')}</button></form>${savedTables.length?`<div class="new-table-area"><h3>Saved tables</h3><div class="saved-tables">${savedTables.map(t=>`<button class="subtle-button" data-action="resume-table" data-code="${t.code}">${esc(t.name)} · ${t.code} ${icon('arrow')}</button>`).join('')}</div></div>`:''}<div class="new-table-area"><button class="button secondary" data-action="new-confirm">New table ${icon('arrow')}</button></div>`;
   } else if(kind==='exchange') {
     title='Exchange';
     const chips=counts=>Object.entries(counts).map(([value,count])=>`<span class="exchange-chips">${chip(value)}<b>× ${count}</b></span>`).join('');
@@ -341,7 +390,7 @@ function showModal(kind, id) {
   });
   $('#settings-form')?.addEventListener('submit',async e=>{
     e.preventDefault();const data=Object.fromEntries(new FormData(e.target));
-    if(await action('settings',{name:data.name,startingStack:Number(data.startingStack)})){closeModal();toast('Your table is ready.');}
+    if(await action('settings',{name:data.name,startingStack:Number(data.startingStack),playerCount:Number(data.playerCount || state.playerCount)})){closeModal();toast('Your table is ready.');}
   });
 }
 
@@ -366,6 +415,7 @@ document.addEventListener('click',async e=>{
   if(name==='reload')return location.reload();
   if(name==='sound'){muted=!muted;localStorage.setItem('clubhouse-muted',String(muted));if(!muted)sound(2);document.querySelectorAll('[data-action="sound"]').forEach(b=>{b.innerHTML=icon(muted?'muted':'sound');b.setAttribute('aria-label',`${muted?'Enable':'Mute'} chip sounds`);});return;}
   if(name==='fullscreen'){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('Fullscreen is unavailable in this browser.',true);}return;}
+  if(name==='undo'){await action('undo');return;}
   if(name==='call'){await action('call');return;}
   if(name==='demo'){controlsOpen=false;await action('demo');return;}
   if(name==='controls'){controlsOpen=!controlsOpen;const drawer=$('.controls-drawer');drawer.hidden=!controlsOpen;button.setAttribute('aria-expanded',String(controlsOpen));button.innerHTML=icon(controlsOpen?'close':'gear');return;}
