@@ -2,7 +2,7 @@
 
 A shared chip table for physical poker. Your laptop displays the pot; phones around the table hold the chips. Bring your own playing cards.
 
-Both playing surfaces use real 3D geometry and rigid-body physics: walnut rails, leather, woven green felt, solid printed chips, gravity, chip collisions, soft shadows, and throws from each seat. The laptop is a full-screen felt surface with host controls hidden behind the gear icon. Phones show stacks at the bottom and selected chips in the middle, with no player name, pot amount, sound toggle, or instructions. Materials are generated locally; chip contacts use locally stored recordings from Kenney's CC0 Casino Audio pack. Devices without WebGL fall back to CSS chip and table surfaces.
+Both playing surfaces use real 3D geometry and rigid-body physics: walnut rails, leather, woven green felt, solid printed chips, gravity, chip collisions, soft shadows, and throws from each seat. The laptop is a full-screen felt surface with host controls hidden behind the gear icon. Phones show stacks at the bottom and selected chips in the middle, with turn status and Check/Call and Fold buttons. Materials are generated locally; chip contacts use locally stored recordings from Kenney's CC0 Casino Audio pack. Devices without WebGL fall back to CSS chip and table surfaces.
 
 ## Start the table
 
@@ -28,11 +28,14 @@ For another port: `PORT=3001 npm start`.
 - **Exchange** appears when a denomination is empty and other stacked chips can provide change. Choose an equal-value swap; selected chips stay separate. Denominations are retained after betting and reloading.
 - The laptop’s **Undo** button restores the last table action, with a maximum of two saved actions. Undo consumes history; a new action adds one new undo. Bets, calls, loans, folds, payouts, settings, joins, and removals can be undone.
 - Chip counts above ten automatically exchange upward, starting with ones and continuing through fives and 25s. A denomination keeps at most ten chips; 100s have no limit.
-- **Call** matches the difference between a player’s total contribution and the highest total at the table, capped at their available stack. No street tracking, enforced turn order, check button, fold button, or virtual dealing.
-- The host records physical folds in the winner dialog or by clicking a player. Folded chips remain in the pot and folded players cannot receive payouts.
-- **Award the pot** calculates contribution tiers, lets the host choose each eligible winner, and supports split pots. Uncalled chips return to their contributor. Odd chips in a split are distributed clockwise from seat 1. Awarding all pots starts a fresh hand.
-- **The bank** gives or repays loans and keeps a debt record. An all-in player receives additional chips after the current hand. This keeps their side-pot eligibility correct.
-- **Practice table** in the gear menu creates sample players. The phone icon opens a practice player’s surface. Start a fresh table from settings when ready to invite real players.
+- The laptop starts each hand, choosing the button (which defaults to rotating clockwise). Small and big blinds post automatically; the default blinds are 1/2 and can be changed between hands in settings. The button is also the small blind with two players.
+- Only the player whose turn is highlighted may bet, raise, call, check, or fold. Preflop action starts after the big blind; later rounds start after the button. The big blind keeps the option to check or raise. Minimum raises, short all-ins, and reopening betting are enforced.
+- Phones show equal-sized **Check/Call** and **Fold** buttons. Check appears when nothing is owed; Call shows the remaining amount for this betting round, capped at the player's stack. Both buttons are disabled while chips are selected or carried, and outside the player's turn. Return selected chips to the stacks to use either button.
+- Each player's current-round contribution appears outside their name box toward the pot. These amounts disappear when betting closes. The laptop then offers **Deal flop**, **Deal turn**, or **Deal river**; advance after dealing the physical cards. After the river, select winners. If everyone else folds, the pot is awarded automatically.
+- Folded chips remain in the pot and folded players cannot receive payouts. Use Undo to correct a fold or restore the previous turn.
+- **Award the pot** calculates contribution tiers, lets the host choose each eligible winner, and supports split pots. Uncalled chips return to their contributor. Odd chips in a split are distributed clockwise from seat 1. Awarding all pots prepares the next hand; press **Start hand** after dealing.
+- **The bank** gives or repays loans and keeps a debt record. Loans and repayments are available between hands. This keeps their side-pot eligibility correct.
+- **Practice table** in the gear menu creates sample players and starts a hand with blinds. The phone icon opens a practice player’s surface. Start a fresh table from settings when ready to invite real players.
 
 ## Saving and reconnecting
 

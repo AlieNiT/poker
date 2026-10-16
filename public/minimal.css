@@ -90,3 +90,12 @@ body.table-body{background:#183f2d;overflow:hidden}
 .seat-arc[aria-disabled="true"]{cursor:default}.seat-arc[aria-disabled="true"] path{fill:#c9cebf;stroke:#bec5b3}.seat-arc[aria-disabled="true"] text{fill:#939c88}
 @media(max-width:580px){.immersive .ring-seat.occupied{min-width:80px;max-width:106px;padding:7px;column-gap:5px}.immersive .ring-seat .seat-name{max-width:55px}}
 @media(prefers-reduced-motion:reduce){.seat-arc path{transition:none}}
+
+.hand-controls{position:absolute;top:25px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:14px;max-width:calc(100% - 200px)}
+.hand-status{font-size:12px;line-height:1.5;color:#d6d7b8;text-align:center}.hand-button{min-height:38px;white-space:nowrap;font-size:12px;padding:8px 16px}
+.immersive .ring-seat.acting{border-color:#d8c68c;box-shadow:0 0 0 3px #d8c68c22,0 6px 20px #071a1266}.position-markers{position:absolute;top:-10px;left:9px;display:flex;gap:4px}.position-marker{display:grid;place-items:center;min-width:22px;height:20px;padding:0 5px;border-radius:10px;background:#e1d9b7;color:#273d2d;border:1px solid #a99863;font-size:9px;font-weight:700}
+.round-bet{position:absolute;transform:translate(-50%,-50%);z-index:4;min-width:32px;padding:5px 10px;border:1px solid #b5b88955;border-radius:20px;background:#102f22bf;color:#f3e7bd;text-align:center;font-size:16px;font-weight:550;font-variant-numeric:tabular-nums;pointer-events:none}
+.minimal-phone .turn-status{min-height:24px;text-align:center;font-size:12px;line-height:24px;color:#9dad8d}.minimal-phone .turn-status.your-turn{color:#e4d59c}
+.minimal-phone .phone-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.minimal-phone .phone-actions>.button{width:100%;min-width:0;height:48px;min-height:48px;margin:0;padding:10px;font-size:14px}.minimal-phone .fold-button{background:#503d32;border:1px solid #a9927055;color:#e6d7bc}.minimal-phone .phone-actions>.button:disabled{opacity:.35;cursor:default}
+.minimal-phone .exchange-button{margin:0 0 10px;min-height:38px;height:38px;align-self:center}.wallet-stack[aria-disabled="true"]{cursor:default}.blind-summary{font-size:12px;line-height:1.7;color:#7e8e6b;margin:16px 0}
+@media(max-width:580px){.hand-controls{top:19px;max-width:calc(100% - 125px);flex-direction:column;gap:5px}.hand-status{font-size:10px}.hand-button{min-height:30px;font-size:10px;padding:5px 10px}.round-bet{font-size:12px;padding:4px 7px}.position-marker{min-width:18px;height:17px;font-size:8px}}

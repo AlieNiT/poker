@@ -104,3 +104,32 @@ test('undo restores a paid hand including contributions, folds, side pots and ha
   assert.equal(room.hand,1);assert.deepEqual(potsFor(room),pots);
   assert.deepEqual(room.players,before.players);
 });
+
+test('folded tiers merge without losing a genuine side pot or uncalled refund',()=>{
+  const room=table();
+  [100,300,500,200].forEach((amount,i)=>bet(room,room.players[i],amount));
+  hostAction(room,'inHand',{playerId:room.players[3].id,value:false});
+  const pots=potsFor(room);
+  assert.deepEqual(pots,[
+    {id:'pot-0',amount:400,eligible:room.players.slice(0,3).map(p=>p.id),refund:null,cap:100},
+    {id:'pot-1',amount:500,eligible:room.players.slice(1,3).map(p=>p.id),refund:null,cap:300},
+    {id:'pot-2',amount:200,eligible:[room.players[2].id],refund:room.players[2].id,cap:500}
+  ]);
+  hostAction(room,'award',{winners:{'pot-0':[room.players[0].id],'pot-1':[room.players[1].id]}});
+  assert.deepEqual(room.players.map(p=>p.balance),[1300,1200,700,800]);
+  assert.equal(total(room),4000);
+});
+
+test('folded tiers merge for split payouts while an unmatched excess stays a refund',()=>{
+  const room=table(3);
+  [1,4,3].forEach((amount,i)=>bet(room,room.players[i],amount));
+  hostAction(room,'inHand',{playerId:room.players[0].id,value:false});
+  const pots=potsFor(room);
+  assert.deepEqual(pots.map(p=>({id:p.id,amount:p.amount,eligible:p.eligible,refund:p.refund})),[
+    {id:'pot-0',amount:7,eligible:room.players.slice(1).map(p=>p.id),refund:null},
+    {id:'pot-1',amount:1,eligible:[room.players[1].id],refund:room.players[1].id}
+  ]);
+  hostAction(room,'award',{winners:{'pot-0':room.players.slice(1).map(p=>p.id)}});
+  assert.deepEqual(room.players.map(p=>p.balance),[999,1001,1000]);
+  assert.equal(total(room),3000);
+});

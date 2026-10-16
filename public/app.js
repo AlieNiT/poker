@@ -149,7 +149,10 @@ function playerSeat(seat) {
   const angle = seatAngle(seat);
   const style = `left:${50 + Math.cos(angle)*39}%;top:${50 + Math.sin(angle)*36}%;`;
   if (!p) return `<button style="${style}" class="seat ring-seat empty-seat" data-action="invite" aria-label="Invite a player to seat ${seats().indexOf(seat)+1}"><span class="empty-avatar">${icon('plus')}</span></button>`;
-  return `<button style="${style}" class="seat ring-seat occupied ${!p.inHand ? 'out' : ''}" data-action="player" data-id="${p.id}" aria-label="Manage ${esc(p.name)}"><span class="avatar avatar-${seat}">${esc(p.name.slice(0,1).toUpperCase())}<i class="presence ${p.connected || state.demo ? 'on' : ''}"></i></span><span class="seat-name">${esc(p.name)}</span><span class="seat-stack">${fmt(p.balance)}</span></button>`;
+  const b = state.betting;
+  const markers = [[b.buttonId,'D','Dealer button'],[b.smallBlindId,'SB','Small blind'],[b.bigBlindId,'BB','Big blind']].filter(([id]) => id === p.id).map(([,label,title]) => `<span class="position-marker" title="${title}" aria-label="${title}">${label}</span>`).join('');
+  const wager = b.phase === 'betting' && p.roundContribution > 0 ? `<span class="round-bet" data-player-id="${p.id}" style="left:${50+Math.cos(angle)*27}%;top:${50+Math.sin(angle)*24}%;" aria-label="${esc(p.name)} bet ${fmt(p.roundContribution)} this round">${fmt(p.roundContribution)}</span>` : '';
+  return `<button style="${style}" class="seat ring-seat occupied ${b.actorId===p.id?'acting':''} ${!p.inHand ? 'out' : ''}" data-action="player" data-id="${p.id}" aria-label="Manage ${esc(p.name)}"><span class="avatar avatar-${seat}">${esc(p.name.slice(0,1).toUpperCase())}<i class="presence ${p.connected || state.demo ? 'on' : ''}"></i></span><span class="seat-name">${esc(p.name)}</span><span class="seat-stack">${fmt(p.balance)}</span><span class="position-markers">${markers}</span></button>${wager}`;
 }
 function potChips() {
   const total = totalPot(); if(!total) return '';
@@ -158,13 +161,18 @@ function potChips() {
 function renderHost() {
   document.body.classList.remove('player-body');
   document.body.classList.add('table-body');
-  const pot = totalPot();
+  const pot = totalPot(), b = state.betting;
+  const actor = state.players.find(p => p.id === b.actorId);
+  const streetNames = {preflop:'Preflop',flop:'Flop',turn:'Turn',river:'River'};
+  const nextNames = {preflop:'Deal flop',flop:'Deal turn',turn:'Deal river'};
+  const status = b.phase === 'waiting' ? 'Ready for the next hand' : b.phase === 'between' ? `${streetNames[b.street]} · Betting complete` : b.phase === 'showdown' ? 'Showdown · Choose the winners' : `${streetNames[b.street]} · ${esc(actor?.name || '')} to act`;
   const control = (action, glyph, label, extra = '') => `<button class="icon-button" data-action="${action}" aria-label="${label}" title="${label}" ${extra}>${icon(glyph)}</button>`;
   app.innerHTML = `<div class="host-shell immersive" aria-label="${esc(state.name)}">
     <main class="table-stage">
       <div class="poker-table"><div class="felt"><div class="table-stitch"></div><div class="pot-center"><div class="pot-number" aria-label="Pot: ${fmt(pot)}">${fmt(pot)}</div>${potChips()}</div></div></div>
       ${seats().map(playerSeat).join('')}<div class="flight-layer"></div>
     </main>
+    <div class="hand-controls"><span class="hand-status" role="status">${status}</span>${b.phase==='waiting'?`<button class="button primary hand-button" data-action="start-hand" ${state.players.filter(p=>p.balance>0).length<2?'disabled':''}>Start hand</button>`:b.phase==='between'?`<button class="button primary hand-button" data-action="next-street">${nextNames[b.street]}</button>`:''}</div>
     <nav class="table-controls" aria-label="Table controls">
       ${connection()}
       <button class="icon-button controls-toggle" data-action="controls" aria-label="Table controls" aria-expanded="${controlsOpen}" title="Table controls">${icon(controlsOpen?'close':'gear')}</button>
@@ -174,10 +182,10 @@ function renderHost() {
         ${control('bank','bank','Open bank and manage loans')}
         ${control('settings','gear','Table settings')}
         ${control('fullscreen','expand','Toggle fullscreen')}
-        ${!state.players.length?control('demo','phone','Practice table'):state.demo?control('preview','phone','Player preview',`data-id="${state.players[0].id}"`):''}
+        ${!state.players.length?control('demo','phone','Practice table'):state.demo?control('preview','phone','Player preview',`data-id="${b.actorId || state.players[0].id}"`):''}
       </div>
     </nav>
-    <button class="icon-button table-award" data-action="award" aria-label="Award the pot" title="Award the pot" ${pot?'':'disabled'}>${icon('cup')}</button>
+    <button class="icon-button table-award" data-action="award" aria-label="Award the pot" title="Award the pot" ${pot && b.phase==='showdown'?'':'disabled'}>${icon('cup')}</button>
   </div>`;
   mountHost3D($('.table-stage'),pot,state.lastEvent,session.code);
 }
@@ -192,7 +200,7 @@ function animateThrow(seat, amount) {
   layer.append(pile); setTimeout(()=>pile.remove(),1200);
 }
 
-function toCall(p) { return Math.max(0, Math.max(0,...state.players.map(p=>p.contribution))-p.contribution); }
+function toCall(p) { return p.actions.callAmount; }
 function renderPlayer() {
   const p = currentPlayer();
   document.body.classList.remove('table-body');
@@ -232,12 +240,13 @@ function renderPlayer() {
     <header class="player-top">${previewId?`<button class="icon-button" data-action="exit-preview" aria-label="Return to the laptop table">${icon('back')}</button>`:'<span></span>'}<div>${connection()}</div></header>
     <div class="phone-pot" id="throw-zone" aria-label="Pot edge"></div>
     <div class="player-intro"><div class="player-balance" aria-label="Your chips">${fmt(p.balance)}</div></div>
+    <div class="turn-status" role="status"></div>
     <div class="chip-mat" aria-label="Chip surface">
       ${denominations.map((v,i)=>`<div class="wallet-stack" data-value="${v}" style="left:${[5,28,51,74][i]}%;top:85%" tabindex="0" role="button" aria-label="Select one ${v} chip"><div class="stack-visual">${Array.from({length:Math.max(1,Math.min(6,wallet[v]))},(_,j)=>chip(v,`layer-${j}`)).join('')}</div><span class="stack-count">${wallet[v]} × ${v}</span></div>`).join('')}
       <div id="selected-tray" class="selected-tray" aria-label="Selected chips"></div>
       <span id="selection-value"></span>
     </div>
-    <div class="phone-actions"><button class="button exchange-button" data-action="exchange" id="exchange-button" hidden>Exchange</button><button class="button call-button" data-action="call" id="call-button">Call</button></div>
+    <button class="button exchange-button" data-action="exchange" id="exchange-button" hidden>Exchange</button><div class="phone-actions"><button class="button call-button" data-action="check" id="call-button">Check</button><button class="button fold-button" data-action="fold" id="fold-button">Fold</button></div>
   </div>`;
   updateSelection();
 }
@@ -256,8 +265,17 @@ function updateSelection() {
     const el=$(`.loose-chip[data-id="${c.id}"]`);if(el){el.style.left=`${c.x}%`;el.style.top=`${c.y}%`;el.classList.toggle('dragging',!!c.picked);}
   });
   const callAmount = Math.min(p.balance,toCall(p));
-  $('#call-button').textContent = callAmount?`Call ${fmt(callAmount)}`:'Call';
-  $('#call-button').disabled = !callAmount || !p.inHand || busy;
+  $('#call-button').textContent = callAmount?`Call ${fmt(callAmount)}`:'Check';
+  $('#call-button').dataset.action = callAmount?'call':'check';
+  const blocked = !p.actions.canAct || busy || selected.length > 0 || !!gesture;
+  $('#call-button').disabled = blocked;
+  $('#fold-button').disabled = blocked;
+  const b = state.betting, actor = state.players.find(pl => pl.id === b.actorId);
+  const status = b.phase === 'waiting' ? 'Waiting for the host to start the hand' : !p.inHand ? 'You folded · Waiting for the next hand' : b.phase === 'between' ? 'Betting complete · Waiting for the next cards' : b.phase === 'showdown' ? 'Showdown · Waiting for the winners' : p.balance === 0 ? 'All in' : p.actions.canAct ? (selected.length ? `Your turn · ${fmt(amount)} selected` : 'Your turn') : `Waiting for ${actor?.name || 'the next turn'}`;
+  $('.turn-status').textContent = status;
+  $('.turn-status').classList.toggle('your-turn',p.actions.canAct);
+  document.querySelectorAll('.wallet-stack').forEach(node => node.setAttribute('aria-disabled',String(!p.actions.canAct || busy)));
+
   $('#exchange-button').hidden = !exchanges(wallet).length;
   $('#exchange-button').disabled = busy || !!gesture;
   denominations.forEach(v=>{
@@ -268,7 +286,7 @@ function updateSelection() {
   saveWallet();
 }
 function selectChip(value, position, picked=false) {
-  if (!wallet[value] || busy || !currentPlayer()?.inHand) return null;
+  if (!wallet[value] || busy || !currentPlayer()?.actions.canAct) return null;
   const index=selected.length;
   const chosen={id:`chip-${nextChipId++}`,value,picked,x:position?.x??[50,60,40,70,30][index%5],y:position?.y??Math.min(62,42+Math.floor(index/5)*6)};
   wallet[value]--;selected.push(chosen);navigator.vibrate?.(8);updateSelection();return chosen;
@@ -285,8 +303,12 @@ function moveLooseChips() {
 async function action(name, extra = {}) {
   if (busy) return false;
   const recovering=!!pendingAction;
+  if (!recovering && ['bet','all-in','call','check','fold'].includes(name)) {
+    if (!currentPlayer()?.actions.canAct) {toast('Wait for your turn.',true);return false;}
+    if (['call','check','fold'].includes(name) && selected.length) return false;
+  }
   const counts=name==='bet'?chipCounts({1:0,5:0,25:0,100:0},selected):name==='all-in'?chipCounts(wallet,selected):undefined;
-  pendingAction ||= {action:name,requestId:crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, ...(counts?{chipCounts:counts}:{}), ...(previewId?{playerId:previewId}:{}),...extra};
+  pendingAction ||= {action:name,turnId:state.betting?.turnId,requestId:crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`, ...(counts?{chipCounts:counts}:{}), ...(previewId?{playerId:previewId}:{}),...extra};
   save(pendingKey(),pendingAction);
   busy=true;
   try {
@@ -354,20 +376,23 @@ function showModal(kind, id) {
   const expectedPots = structuredClone(state.pots);
   const p=state.players.find(p=>p.id===id);
   let title, content;
-  if(kind==='invite') {
+  if(kind==='start-hand') {
+    title='Start hand';
+    content=`<form id="start-hand-form"><label>Button<select name="buttonId">${state.players.filter(p=>p.balance>0).map(p=>`<option value="${p.id}" ${p.id===state.nextButtonId?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label><p class="blind-summary">Small blind ${fmt(state.smallBlind)} · Big blind ${fmt(state.bigBlind)}</p><button class="button primary modal-submit" type="submit">Post blinds &amp; start</button></form>`;
+  } else if(kind==='invite') {
     title='Invite players';
     content=`<div class="invite-modal-qr"><img class="qr" width="220" height="220" src="/api/rooms/${session.code}/qr?token=${encodeURIComponent(session.token)}" alt="QR code to join this table"></div><div class="invite-code"><strong class="room-code">${session.code}</strong></div><div class="copy-field"><input aria-label="Invitation URL" value="${esc(joinUrl())}" readonly><button class="button primary" data-action="copy" aria-label="Copy invitation link">${icon('copy')}</button></div>`;
   } else if(kind==='award') {
-    if(!totalPot())return;
+    if(!totalPot() || state.betting.phase !== 'showdown')return;
     title='Winners';
-    content=`<div class="eligibility"><div>${state.players.map(p=>`<button class="eligibility-button ${p.inHand?'active':''}" data-action="inHand" data-id="${p.id}" data-value="${!p.inHand}" aria-label="${esc(p.name)}: ${p.inHand?'in':'out'}">${p.inHand?icon('check'):icon('close')}${esc(p.name)}</button>`).join('')}</div></div><form id="award-form">${state.pots.map((pot,i)=>`<section class="award-pot"><div><h3>${pot.refund?'Return':i?`Side pot ${i}`:'Main pot'}</h3><strong>${fmt(pot.amount)}</strong></div>${pot.refund?`<span class="refund-name">${esc(state.players.find(p=>p.id===pot.refund).name)}</span>`:`<div class="winner-options">${pot.eligible.length?state.players.filter(p=>pot.eligible.includes(p.id)).map(p=>`<label><input type="checkbox" name="${pot.id}" value="${p.id}"><span><span class="small-avatar avatar-${p.seat}">${esc(p.name[0])}</span>${esc(p.name)}${icon('check')}</span></label>`).join(''):'<span class="form-warning">No eligible player</span>'}</div>`}</section>`).join('')}<button class="button primary modal-submit" type="submit">${icon('cup')} Award ${fmt(totalPot())} ${icon('arrow')}</button></form>`;
+    content=`<form id="award-form">${state.pots.map((pot,i)=>`<section class="award-pot"><div><h3>${pot.refund?'Return':i?`Side pot ${i}`:'Main pot'}</h3><strong>${fmt(pot.amount)}</strong></div>${pot.refund?`<span class="refund-name">${esc(state.players.find(p=>p.id===pot.refund).name)}</span>`:`<div class="winner-options">${pot.eligible.length?state.players.filter(p=>pot.eligible.includes(p.id)).map(p=>`<label><input type="checkbox" name="${pot.id}" value="${p.id}"><span><span class="small-avatar avatar-${p.seat}">${esc(p.name[0])}</span>${esc(p.name)}${icon('check')}</span></label>`).join(''):'<span class="form-warning">No eligible player</span>'}</div>`}</section>`).join('')}<button class="button primary modal-submit" type="submit">${icon('cup')} Award ${fmt(totalPot())} ${icon('arrow')}</button></form>`;
   } else if(kind==='bank'||kind==='player') {
     title=p?p.name:'Bank';
-    content=`<div class="bank-players">${(p?[p]:state.players).map(p=>`<div class="bank-player"><span class="small-avatar avatar-${p.seat}">${esc(p.name[0])}</span><div><strong>${esc(p.name)}</strong><span>${fmt(p.balance)} · Loan ${fmt(p.debt)}</span></div>${state.demo?`<button class="icon-button" data-action="preview" data-id="${p.id}" aria-label="Preview ${esc(p.name)}’s phone">${icon('phone')}</button>`:''}</div>`).join('')}</div>${state.players.length?`<form id="bank-form"><label>Player<select name="playerId">${state.players.map(pl=>`<option value="${pl.id}" ${pl.id===id?'selected':''}>${esc(pl.name)}</option>`).join('')}</select></label><div class="form-columns"><label>Action<select name="action"><option value="loan">Loan</option><option value="repay">Repayment</option></select></label><label>Amount<input type="number" name="amount" min="1" max="1000000" step="1" value="500" required></label></div><div class="amount-presets">${[100,500,1000].map(n=>`<button type="button" data-action="amount" data-amount="${n}">${fmt(n)}</button>`).join('')}</div><button class="button primary modal-submit" type="submit">${icon('bank')} Move chips</button></form>`:''}${p?`<div class="player-manage"><button class="subtle-button" data-action="inHand" data-id="${p.id}" data-value="${!p.inHand}">${p.inHand?'Out':'In'}</button><button class="danger-link" data-action="remove" data-id="${p.id}" ${totalPot()?'disabled':''}>Release seat</button></div>`:''}`;
+    content=`<div class="bank-players">${(p?[p]:state.players).map(p=>`<div class="bank-player"><span class="small-avatar avatar-${p.seat}">${esc(p.name[0])}</span><div><strong>${esc(p.name)}</strong><span>${fmt(p.balance)} · Loan ${fmt(p.debt)}</span></div>${state.demo?`<button class="icon-button" data-action="preview" data-id="${p.id}" aria-label="Preview ${esc(p.name)}’s phone">${icon('phone')}</button>`:''}</div>`).join('')}</div>${state.betting.phase !== 'waiting'?'<p class="blind-summary">The bank opens after this hand.</p>':state.players.length?`<form id="bank-form"><label>Player<select name="playerId">${state.players.map(pl=>`<option value="${pl.id}" ${pl.id===id?'selected':''}>${esc(pl.name)}</option>`).join('')}</select></label><div class="form-columns"><label>Action<select name="action"><option value="loan">Loan</option><option value="repay">Repayment</option></select></label><label>Amount<input type="number" name="amount" min="1" max="1000000" step="1" value="500" required></label></div><div class="amount-presets">${[100,500,1000].map(n=>`<button type="button" data-action="amount" data-amount="${n}">${fmt(n)}</button>`).join('')}</div><button class="button primary modal-submit" type="submit">${icon('bank')} Move chips</button></form>`:''}${p?`<div class="player-manage"><button class="danger-link" data-action="remove" data-id="${p.id}" ${state.betting.phase!=='waiting'?'disabled':''}>Release seat</button></div>`:''}`;
   } else if(kind==='settings'||kind==='setup') {
     title=kind === 'setup'?'Set up your table':'Table settings';
     const savedTables=Object.values(stored('clubhouse-tables')||{}).filter(t=>t.code!==session.code);
-    content=`<form id="settings-form"><label>Table name<input name="name" value="${esc(state.name)}" maxlength="32" required></label><label>Player count<input name="playerCount" type="number" min="2" max="20" step="1" value="${state.playerCount}" ${state.players.length?'disabled':''} required></label><label>Starting chips<input type="number" name="startingStack" value="${state.startingStack}" min="1" max="100000" required></label><button class="button primary modal-submit" type="submit">Save ${icon('check')}</button></form>${savedTables.length?`<div class="new-table-area"><h3>Saved tables</h3><div class="saved-tables">${savedTables.map(t=>`<button class="subtle-button" data-action="resume-table" data-code="${t.code}">${esc(t.name)} · ${t.code} ${icon('arrow')}</button>`).join('')}</div></div>`:''}<div class="new-table-area"><button class="button secondary" data-action="new-confirm">New table ${icon('arrow')}</button></div>`;
+    content=`<form id="settings-form"><label>Table name<input name="name" value="${esc(state.name)}" maxlength="32" required></label><label>Player count<input name="playerCount" type="number" min="2" max="20" step="1" value="${state.playerCount}" ${state.players.length?'disabled':''} required></label><label>Starting chips<input type="number" name="startingStack" value="${state.startingStack}" min="1" max="100000" required></label><div class="form-columns"><label>Small blind<input type="number" name="smallBlind" value="${state.smallBlind}" min="1" max="100000" step="1" ${state.betting.phase!=='waiting'?'disabled':''} required></label><label>Big blind<input type="number" name="bigBlind" value="${state.bigBlind}" min="1" max="100000" step="1" ${state.betting.phase!=='waiting'?'disabled':''} required></label></div><button class="button primary modal-submit" type="submit">Save ${icon('check')}</button></form>${savedTables.length?`<div class="new-table-area"><h3>Saved tables</h3><div class="saved-tables">${savedTables.map(t=>`<button class="subtle-button" data-action="resume-table" data-code="${t.code}">${esc(t.name)} · ${t.code} ${icon('arrow')}</button>`).join('')}</div></div>`:''}<div class="new-table-area"><button class="button secondary" data-action="new-confirm">New table ${icon('arrow')}</button></div>`;
   } else if(kind==='exchange') {
     title='Exchange';
     const chips=counts=>Object.entries(counts).map(([value,count])=>`<span class="exchange-chips">${chip(value)}<b>× ${count}</b></span>`).join('');
@@ -379,6 +404,10 @@ function showModal(kind, id) {
   if(!title)return;
   $('#modal-root').innerHTML=`<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="icon-button modal-close" data-action="close" aria-label="Close dialog">${icon('close')}</button><h2 id="modal-title">${esc(title)}</h2>${content}</section></div>`;
   document.body.classList.add('modal-open'); $('.modal-close').focus();
+  $('#start-hand-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();const data=Object.fromEntries(new FormData(e.target));
+    if(await action('start-hand',{buttonId:data.buttonId}))closeModal();
+  });
   $('#award-form')?.addEventListener('submit',async e=>{
     e.preventDefault();const form=new FormData(e.target);const winners={};state.pots.forEach(p=>{winners[p.id]=form.getAll(p.id);});
     if(await action('award',{winners,expectedPots})) {closeModal();toast('Pot awarded. A fresh hand is ready.');}
@@ -390,7 +419,7 @@ function showModal(kind, id) {
   });
   $('#settings-form')?.addEventListener('submit',async e=>{
     e.preventDefault();const data=Object.fromEntries(new FormData(e.target));
-    if(await action('settings',{name:data.name,startingStack:Number(data.startingStack),playerCount:Number(data.playerCount || state.playerCount)})){closeModal();toast('Your table is ready.');}
+    if(await action('settings',{name:data.name,startingStack:Number(data.startingStack),playerCount:Number(data.playerCount || state.playerCount),smallBlind:Number(data.smallBlind || state.smallBlind),bigBlind:Number(data.bigBlind || state.bigBlind)})){closeModal();toast('Your table is ready.');}
   });
 }
 
@@ -401,7 +430,7 @@ async function copyLink() {
 document.addEventListener('click',async e=>{
   const button=e.target.closest('[data-action]');if(!button || button.disabled)return;
   const name=button.dataset.action;
-  if(['invite','award','bank','settings','new-confirm','exchange'].includes(name))return showModal(name);
+  if(['invite','award','bank','settings','new-confirm','exchange','start-hand'].includes(name))return showModal(name);
   if(name==='exchange-chip'){
     if(busy || gesture)return;
     const option=exchange(wallet,Number(button.dataset.value));
@@ -416,7 +445,7 @@ document.addEventListener('click',async e=>{
   if(name==='sound'){muted=!muted;localStorage.setItem('clubhouse-muted',String(muted));if(!muted)sound(2);document.querySelectorAll('[data-action="sound"]').forEach(b=>{b.innerHTML=icon(muted?'muted':'sound');b.setAttribute('aria-label',`${muted?'Enable':'Mute'} chip sounds`);});return;}
   if(name==='fullscreen'){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{toast('Fullscreen is unavailable in this browser.',true);}return;}
   if(name==='undo'){await action('undo');return;}
-  if(name==='call'){await action('call');return;}
+  if(['call','check','fold','next-street'].includes(name)){await action(name);return;}
   if(name==='demo'){controlsOpen=false;await action('demo');return;}
   if(name==='controls'){controlsOpen=!controlsOpen;const drawer=$('.controls-drawer');drawer.hidden=!controlsOpen;button.setAttribute('aria-expanded',String(controlsOpen));button.innerHTML=icon(controlsOpen?'close':'gear');return;}
   if(name==='preview'){closeModal();previewId=button.dataset.id;walletBalance=-1;positions={};render();return;}
@@ -462,6 +491,7 @@ function resetGesture() {
   mat?.style.removeProperty('--stack-dx');mat?.style.removeProperty('--stack-dy');
   $('#throw-zone')?.classList.remove('target-active');
   movePhone3D();
+  updateSelection();
 }
 function groupIntent(g,rect) {
   const point=centroid();
@@ -494,6 +524,7 @@ document.addEventListener('pointerdown',e=>{
   }else if(gesture){
     const point=centroid();gesture.center={x:point.x-gesture.dx,y:point.y-gesture.dy};
   }
+  updateSelection();
 });
 document.addEventListener('pointermove',e=>{
   if(!touches.has(e.pointerId)||!gesture)return;

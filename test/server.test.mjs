@@ -28,53 +28,68 @@ test('server enforces roles, deduplicates bets, hides credentials and restores t
     const created=await request('/api/rooms',null,{});assert.equal(created.status,201);
     const {code,token:host}=created.data;const route=`/api/rooms/${code}`;
     assert.equal((await request(route)).status,401);
-    await request(route+'/action',host,{action:'settings',startingStack:1000,playerCount:4,requestId:'setup'});
+    await request(route+'/action',host,{action:'settings',playerCount:4,requestId:'setup'});
     const a=(await request(route+'/join',null,{name:'Alice',seat:'seat-0'})).data;
     const b=(await request(route+'/join',null,{name:'Bob',seat:'seat-2'})).data;
-    const publicJson=JSON.stringify(a.state);assert.ok(!publicJson.includes(host));assert.ok(!publicJson.includes(a.token));
+    const tokens=new Map([[a.playerId,a.token],[b.playerId,b.token]]);
+    let current;
+    let serial=0;
+    async function act(token,action,data={}){
+      const result=await request(route+'/action',token,{action,requestId:`action-${++serial}`,turnId:current?.betting.turnId,...data});
+      assert.equal(result.status,200,result.data.error);current=result.data.state;return result;
+    }
+    async function showdown(){
+      for(let limit=0;current.betting.phase!=='showdown';limit++){
+        assert.ok(limit<30);
+        if(current.betting.phase==='between')await act(host,'next-street');
+        else{
+          const p=current.players.find(p=>p.id===current.betting.actorId);
+          await act(tokens.get(p.id),p.actions.canCheck?'check':'call');
+        }
+      }
+    }
+    await act(host,'start-hand');
+    assert.deepEqual(current.players.map(p=>p.balance),[599,598]);
+    const savedTurn=structuredClone(current.betting);
+    await stop();await start();current=(await request(route,host)).data.state;
+    assert.deepEqual(current.betting,savedTurn);
+    const publicJson=JSON.stringify(current);assert.ok(!publicJson.includes(host));assert.ok(!publicJson.includes(a.token));assert.ok(!('undoHistory' in current));
+    assert.equal((await request(route+'/action',b.token,{action:'fold',turnId:current.betting.turnId,requestId:'out-of-turn'})).status,400);
     assert.equal((await request(route+'/action',a.token,{action:'loan',playerId:a.playerId,amount:500,requestId:'unauthorized'})).status,403);
     assert.equal((await request(route+'/action',host,{action:'bet',playerId:a.playerId,amount:10,requestId:'host-bet'})).status,403);
-    const wager={action:'bet',amount:25,requestId:'same-bet'};
-    assert.equal((await request(route+'/action',a.token,wager)).status,200);
-    const duplicate=await request(route+'/action',a.token,wager);assert.equal(duplicate.data.state.players[0].balance,975);
-    assert.equal((await request(route+'/action',b.token,{action:'bet',amount:-10,requestId:'invalid'})).status,400);
-    await request(route+'/action',b.token,{action:'bet',amount:10,requestId:'bob-bet'});
-    const award=await request(route+'/action',host,{action:'award',winners:{'pot-0':[a.playerId]},requestId:'award'});
-    assert.equal(award.status,200);assert.deepEqual(award.data.state.players.map(p=>p.balance),[1010,990]);
-    await request(route+'/action',host,{action:'loan',playerId:a.playerId,amount:100,requestId:'loan'});
+    const wager={action:'bet',amount:25,turnId:current.betting.turnId,requestId:'same-bet'};
+    await act(a.token,'bet',wager);assert.equal(current.players[0].balance,574);
+    const revision=current.revision;
+    const duplicate=await request(route+'/action',a.token,wager);assert.equal(duplicate.data.state.revision,revision);
+    assert.equal(duplicate.data.state.players[0].balance,574);
+    await act(b.token,'call');assert.equal(current.betting.phase,'between');
+    await showdown();await act(host,'award',{winners:{'pot-0':[a.playerId]}});
+    assert.deepEqual(current.players.map(p=>p.balance),[626,574]);
+    await act(host,'loan',{playerId:a.playerId,amount:100});
     await stop();await start();
     const restored=await request(route,a.token);assert.equal(restored.status,200);assert.equal(restored.data.playerId,a.playerId);
-    assert.equal(restored.data.state.players[0].balance,1110);assert.equal(restored.data.state.players[0].debt,100);assert.equal(restored.data.state.hand,2);
-    const allIn={action:'all-in',requestId:'alice-all-in',chipCounts:{1:10,5:0,25:0,100:11}};
-    const shoved=await request(route+'/action',a.token,allIn);assert.equal(shoved.status,200);
-    assert.equal(shoved.data.state.players[0].balance,0);
-    assert.equal((await request(route+'/action',a.token,allIn)).data.state.players[0].contribution,1110);
-    const called=await request(route+'/action',b.token,{action:'call',requestId:'bob-short-call'});
-    assert.deepEqual(called.data.state.pots.map(p=>p.amount),[1980,120]);
-    assert.deepEqual(called.data.state.pots[0].eligible,[a.playerId,b.playerId]);
-    assert.equal(called.data.state.pots[1].refund,a.playerId);
-    const paid=await request(route+'/action',host,{action:'award',winners:{'pot-0':[b.playerId]},requestId:'side-pot-award'});
-    assert.deepEqual(paid.data.state.players.map(p=>p.balance),[120,1980]);
-    assert.equal(paid.data.state.undoCount,2);
-    assert.ok(!('undoHistory' in paid.data.state));
+    current=restored.data.state;assert.equal(current.players[0].balance,726);assert.equal(current.players[0].debt,100);
+    await act(host,'start-hand');assert.equal(current.betting.buttonId,b.playerId);
+    const allIn={action:'all-in',requestId:'bob-all-in',turnId:current.betting.turnId};
+    await act(b.token,'all-in',allIn);assert.equal(current.players[1].balance,0);
+    assert.equal((await request(route+'/action',b.token,allIn)).data.state.players[1].contribution,574);
+    const callTurn=current.betting.turnId;
+    await act(a.token,'call',{requestId:'alice-call'});
+    assert.equal(current.betting.phase,'between');assert.deepEqual(current.pots.map(p=>p.amount),[1148]);
+    await showdown();await act(host,'award',{winners:{'pot-0':[b.playerId]}});
+    assert.deepEqual(current.players.map(p=>p.balance),[152,1148]);
     assert.equal((await request(route+'/action',a.token,{action:'undo',requestId:'player-undo'})).status,403);
-    const undo=await request(route+'/action',host,{action:'undo',requestId:'undo-award'});
-    assert.equal(undo.data.state.hand,2);assert.equal(undo.data.state.undoCount,1);
-    assert.deepEqual(undo.data.state.pots.map(p=>p.amount),[1980,120]);
-    const revision=undo.data.state.revision;
-    const retry=await request(route+'/action',host,{action:'undo',requestId:'undo-award'});
-    assert.equal(retry.data.state.revision,revision);assert.equal(retry.data.state.undoCount,1);
-    const secondUndo=await request(route+'/action',host,{action:'undo',requestId:'undo-call'});
-    assert.equal(secondUndo.data.state.undoCount,0);
-    assert.equal((await request(route+'/action',host,{action:'undo',requestId:'too-many-undos'})).status,400);
-    const retryCall=await request(route+'/action',b.token,{action:'call',requestId:'bob-short-call'});
-    assert.equal(retryCall.data.state.undoCount,0);assert.equal(retryCall.data.state.players[1].contribution,0);
-    const newCall=await request(route+'/action',b.token,{action:'call',requestId:'new-call'});
-    assert.equal(newCall.data.state.undoCount,1);
+    await act(host,'undo',{requestId:'undo-award'});assert.equal(current.betting.phase,'showdown');assert.equal(current.hand,2);
+    const undoRevision=current.revision;
+    const retry=await request(route+'/action',host,{action:'undo',requestId:'undo-award'});assert.equal(retry.data.state.revision,undoRevision);
+    // Deal-river is the second saved action; undo consumes it without creating redo history.
+    await act(host,'undo');assert.equal(current.betting.phase,'between');assert.equal(current.undoCount,0);
+    assert.equal((await request(route+'/action',host,{action:'undo',requestId:'third-undo'})).status,400);
+    const oldCall=await request(route+'/action',a.token,{action:'call',requestId:'alice-call',turnId:callTurn});assert.equal(oldCall.data.state.undoCount,0);
+    await act(host,'next-street');assert.equal(current.undoCount,1);
     await stop();await start();
-    const reloaded=await request(route,host);assert.equal(reloaded.data.state.undoCount,1);
-    const persistedUndo=await request(route+'/action',host,{action:'undo',requestId:'persisted-undo'});
-    assert.equal(persistedUndo.data.state.players[1].contribution,0);
-    assert.equal(persistedUndo.data.state.undoCount,0);
+    current=(await request(route,host)).data.state;assert.equal(current.undoCount,1);assert.equal(current.betting.phase,'showdown');
+    await act(host,'undo');assert.equal(current.betting.phase,'between');assert.equal(current.undoCount,0);
+    assert.equal(current.players.reduce((sum,p)=>sum+p.balance+p.contribution,0),1300);
   }finally{if(child?.exitCode===null)await stop();}
 });

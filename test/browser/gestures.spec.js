@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {send,startHand} from './helpers.js';
 
 async function dragGroup(phone,cdp,start,end){
   const mat=await phone.locator('.chip-mat').boundingBox(),x=mat.x+mat.width/2;
@@ -31,6 +32,7 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   await expect(phone.locator('.player-shell.has-3d')).toBeVisible();
   await page.request.post(`/api/rooms/${host.code}/action`,{headers:{Authorization:`Bearer ${host.token}`},data:{action:'settings',startingStack:400,requestId:'short-stack-setting'}});
   const second=(await (await page.request.post(`/api/rooms/${host.code}/join`,{data:{name:'Short stack',seat:'seat-2'}})).json());
+  await startHand(page);await expect(phone.locator('.turn-status')).toHaveText('Your turn');
   const player=await phone.evaluate(()=>JSON.parse(localStorage.getItem(`clubhouse-player-${new URLSearchParams(location.search).get('table')}`)));
   const cdp=await context.newCDPSession(phone);
   await expect(phone.locator('#exchange-button')).toBeHidden();
@@ -56,7 +58,7 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   await endDrag(cdp);
   expect(await phone.evaluate(()=>[...chipWorld.chips].some(b=>b.holdTarget))).toBe(false);
   expect(await phone.evaluate(()=>[...chipWorld.chips].map(b=>[b.position.x,b.position.y,b.position.z]))).toEqual(poses);
-  await expect(page.locator('.pot-number')).toHaveText('0');
+  await expect(page.locator('.pot-number')).toHaveText('3');
   // Widely separated chips can still be thrown, even if the SSE status drops.
   for(const y of [.68,.26]){
     await phone.locator('.wallet-stack[data-value="25"]').tap();
@@ -66,8 +68,10 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   }
   await phone.evaluate(()=>window.dispatchEvent(new Event('offline')));
   await dragGroup(phone,cdp,.45,.04);await endDrag(cdp);
-  await expect(phone.locator('.player-balance')).toHaveText('550');
-  await expect(page.locator('.pot-number')).toHaveText('50');
+  await expect(phone.locator('.player-balance')).toHaveText('549');
+  await expect(page.locator('.pot-number')).toHaveText('53');
+  await send(page,host,second.token,'call');await send(page,host,host.token,'next-street');await send(page,host,second.token,'check');
+  await expect(phone.locator('.turn-status')).toHaveText('Your turn');
   await phone.locator('.wallet-stack[data-value="25"]').tap();
   // Commit the first request but lose its HTTP response. Its retry must not double-bet.
   let requests=0;
@@ -77,9 +81,11 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
     else await route.continue();
   });
   await dragGroup(phone,cdp,.42,.04);await endDrag(cdp);
-  await expect(phone.locator('.player-balance')).toHaveText('525');
-  await expect(page.locator('.pot-number')).toHaveText('75');expect(requests).toBe(2);
+  await expect(phone.locator('.player-balance')).toHaveText('524');
+  await expect(page.locator('.pot-number')).toHaveText('127');expect(requests).toBe(2);
   await phone.unroute(`**/api/rooms/${host.code}/action`);
+  await send(page,host,second.token,'call');await send(page,host,host.token,'next-street');await send(page,host,second.token,'check');
+  await expect(phone.locator('.turn-status')).toHaveText('Your turn');
   // A cancelled browser touch must release every carried chip and allow another bet.
   await dragGroup(phone,cdp,.85,.5);
   await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
@@ -89,9 +95,10 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   await phone.locator('.wallet-stack[data-value="25"]').tap();
   await dragGroup(phone,cdp,.85,.04);await endDrag(cdp);
   await expect(phone.locator('.player-balance')).toHaveText('0');
-  await expect(page.locator('.pot-number')).toHaveText('600');
+  await expect(page.locator('.pot-number')).toHaveText('676');
   // The other player's shorter all-in still creates the normal main pot/refund.
-  await page.request.post(`/api/rooms/${host.code}/action`,{headers:{Authorization:`Bearer ${second.token}`},data:{action:'all-in',requestId:'short-all-in'}});
+  await send(page,host,second.token,'all-in');
+  await send(page,host,host.token,'next-street');
   const final=(await (await page.request.get(`/api/rooms/${host.code}`,{headers:{Authorization:`Bearer ${host.token}`}})).json()).state;
   expect(final.pots.map(p=>p.amount)).toEqual([800,200]);
   expect(final.pots[0].eligible).toEqual([player.playerId,second.playerId]);

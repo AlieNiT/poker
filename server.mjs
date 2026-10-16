@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomBytes, randomUUID } from 'node:crypto';
 import QRCode from 'qrcode';
-import { createRoom, joinRoom, bet, hostAction, potsFor, seatsFor, snapshot, rememberAction } from './game.mjs';
+import { createRoom, joinRoom, hostAction, potsFor, seatsFor, snapshot, rememberAction, playerAction, bettingOptions, nextButton } from './game.mjs';
 
 const port = Number(process.env.PORT || 3000);
 const dataDir = path.resolve(process.env.DATA_DIR || '.data');
@@ -15,8 +15,11 @@ await mkdir(dataDir, { recursive: true });
 try {
   const saved = JSON.parse(await readFile(path.join(dataDir, 'tables.json'), 'utf8'));
   for (const room of saved) {
-    delete room.round;
-    room.players.forEach(p => { delete p.roundContribution; });
+    room.smallBlind ??= 1; room.bigBlind ??= 2;
+    room.betting ??= {phase:room.players.some(p => p.contribution > 0) ? 'showdown' : 'waiting',street:'preflop',actorId:null};
+    room.players.forEach(p => { p.roundContribution ??= 0; });
+    // Old undo snapshots predate turn handling and cannot restore a valid turn.
+    room.undoHistory = (room.undoHistory || []).filter(entry => entry.betting);
     rooms.set(room.code, room);
   }
 } catch (e) { if (e.code !== 'ENOENT') console.error('Could not restore tables:', e.message); }
@@ -29,7 +32,7 @@ function persist() {
 }
 function publicState(room) {
   const { hostToken, processed, undoHistory, ...state } = room;
-  return { ...state, seatIds: seatsFor(room), playerCount: seatsFor(room).length, undoCount: undoHistory?.length || 0, players: room.players.map(({ token, ...p }) => ({ ...p, connected: (presence.get(`${room.code}:${p.id}`) || 0) > 0 })), pots: potsFor(room) };
+  return { ...state, seatIds: seatsFor(room), playerCount: seatsFor(room).length, undoCount: undoHistory?.length || 0, nextButtonId: nextButton(room)?.id, players: room.players.map(({ token, ...p }) => ({ ...p, actions: bettingOptions(room,p), connected: (presence.get(`${room.code}:${p.id}`) || 0) > 0 })), pots: potsFor(room) };
 }
 function broadcast(room) {
   const message = `data: ${JSON.stringify(publicState(room))}\n\n`;
@@ -70,11 +73,12 @@ const server = http.createServer(async (req, res) => {
       const room = rooms.get(match[1]);
       if (!room) return json(res, 404, { error: 'Table not found. Check the table code with your host.' });
       const route = match[2];
-      if (req.method === 'GET' && route === 'preview') return json(res, 200, { name: room.name, code: room.code, seatIds: seatsFor(room), ready: room.setupComplete !== false, seats: room.players.map(p => ({ name:p.name, seat:p.seat })), handInProgress: room.players.some(p => p.contribution > 0) });
+      if (req.method === 'GET' && route === 'preview') return json(res, 200, { name: room.name, code: room.code, seatIds: seatsFor(room), ready: room.setupComplete !== false, seats: room.players.map(p => ({ name:p.name, seat:p.seat })), handInProgress: room.betting?.phase !== 'waiting' || room.players.some(p => p.contribution > 0) });
       if (req.method === 'POST' && route === 'join') {
         if (room.setupComplete === false) throw new Error('The host is still setting up this table.');
+        const data = await body(req);
         const before = snapshot(room);
-        const player = joinRoom(room, await body(req)); rememberAction(room, before); persist(); broadcast(room);
+        const player = joinRoom(room, data); rememberAction(room, before); persist(); broadcast(room);
         return json(res, 201, { token: player.token, playerId: player.id, code: room.code, state: publicState(room) });
       }
       const auth = authenticate(req, room, url);
@@ -104,10 +108,10 @@ const server = http.createServer(async (req, res) => {
         if (typeof data.requestId !== 'string' || data.requestId.length > 64) return json(res, 400, {error:'This action needs a request ID.'});
         if (room.processed.includes(data.requestId)) return json(res, 200, { state: publicState(room) });
         const before = snapshot(room);
-        if (['bet','call','all-in'].includes(data.action)) {
-          const player = auth.player || (auth.host && room.demo ? room.players.find(p => p.id === data.playerId) : null);
+        if (['bet','call','all-in','check','fold'].includes(data.action)) {
+          const player = (auth.player && room.players.find(p => p.id === auth.player.id)) || (auth.host && room.demo ? room.players.find(p => p.id === data.playerId) : null);
           if (!player) return json(res, 403, { error: 'Only the seated player can throw their chips.' });
-          bet(room, player, data.action==='all-in'?player.balance:data.amount, data.action === 'call',data.chipValues,data.chipCounts);
+          playerAction(room, player, data.action, data);
         } else {
           if (!auth.host) return json(res, 403, { error: 'Only the laptop host can manage the table.' });
           hostAction(room, data.action, data);

@@ -1,4 +1,5 @@
 import {test, expect} from '@playwright/test';
+import {startHand} from './helpers.js';
 
 async function observePhysics(page) {
   await page.evaluate(async () => {
@@ -40,6 +41,9 @@ test('picked chips follow the finger silently, drop on release, and still throw 
   await observePhysics(phone);
   await phone.getByRole('button', {name: 'Join', exact: true}).click();
   await expect(phone.locator('.player-shell.has-3d canvas')).toBeVisible();
+  const joined=await page.request.post(`/api/rooms/${code}/join`,{data:{name:'Opponent',seat:'seat-1'}});
+  expect(joined.ok()).toBeTruthy();await startHand(page);
+  await expect(phone.locator('.turn-status')).toHaveText('Your turn');
   await phone.evaluate(()=>physicsCheck.bankIds=new Set([...physicsCheck.world.chips].map(b=>b.id)));
   for (let i = 0; i < 4; i++) await phone.locator('.wallet-stack[data-value="25"]').tap();
   await expect(phone.locator('#selection-value')).toHaveText('100');
@@ -97,7 +101,7 @@ test('picked chips follow the finger silently, drop on release, and still throw 
   await phone.waitForTimeout(50);
   await cdp.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
   await cdp.detach();
-  await expect(page.locator('.pot-number')).toHaveText('100');
+  await expect(page.locator('.pot-number')).toHaveText('103');
   await page.bringToFront();
   try{
     await expect.poll(() => page.evaluate(() => physicsCheck.world && !physicsCheck.world.active), {timeout: 20000}).toBe(true);
