@@ -20,7 +20,7 @@ test('server enforces roles, deduplicates bets, hides credentials and restores t
   }
   async function stop(){await new Promise(resolve=>{child.once('exit',resolve);child.kill('SIGTERM');});}
   async function request(url,token,data){
-    const response=await fetch(base+url,{method:data?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},...(data?{body:JSON.stringify(data)}:{})});
+    const response=await fetch(base+url,{method:data?'POST':'GET',headers:{Connection:'close','Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},...(data?{body:JSON.stringify(data)}:{})});
     return {status:response.status,data:await response.json()};
   }
   try{

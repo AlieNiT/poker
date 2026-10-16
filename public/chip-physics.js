@@ -4,7 +4,7 @@ export class ChipPhysics {
   constructor(floorHeight = 0, onImpact = () => {}) {
     this.world = new CANNON.World({gravity: new CANNON.Vec3(0,-9.81,0),allowSleep:true});
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
-    this.world.solver.iterations = 20;
+    this.world.solver.iterations = 40;
     this.world.solver.tolerance = .00001;
     this.chipMaterial = new CANNON.Material('chip');
     this.feltMaterial = new CANNON.Material('felt');
@@ -26,7 +26,8 @@ export class ChipPhysics {
     body.addEventListener('collide',event=>{
       if(body.holdTarget || event.body.holdTarget)return;
       const impact=event.contact.getImpactVelocityAlongNormal();
-      if(impact>.65){delete body.restPose;delete event.body.restPose;}
+      // Solver velocity spikes do not necessarily move a resting chip. Actual
+      // pose changes and loss of support reset its settling window in step().
       const key=this.contactKey(body,event.body);
       const separated=this.world.time-(this.contactTimes.get(key)??-Infinity)>.06;
       // A solver contact briefly disappearing is not a new audible impact.
@@ -96,7 +97,8 @@ export class ChipPhysics {
     }
   }
   step(elapsed){
-    const fixedStep=1/120;
+    // Thin chips need substeps shorter than a fast chip can cross its own thickness.
+    const fixedStep=1/240;
     this.accumulator+=Math.min(Math.max(elapsed,0),.06);
     while(this.accumulator+1e-10>=fixedStep){
       this.world.step(fixedStep);this.accumulator-=fixedStep;

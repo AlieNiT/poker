@@ -1,3 +1,4 @@
+import {planChipThrow} from './chip-throws.js';
 import * as THREE from '/vendor/three/three.module.js';
 import {ChipPhysics} from './chip-physics.js';
 import {playChipSound} from './chip-sound.js';
@@ -7,8 +8,9 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const palette = {1:['#e3dcc2','#76694b'],5:['#a74035','#f0dfbf'],25:['#315f81','#e5e6d2'],100:['#252d2b','#e3d3a5']};
 const surfaces = new Map();
 const chipMaterials = new Map();
-const sharedGeometry = new THREE.CylinderGeometry(.47,.47,.085,48);
-const edgeGeometry = new THREE.TorusGeometry(.453,.012,6,48);
+// Leave a small visual clearance inside the collider so settled faces cannot z-fight.
+const sharedGeometry = new THREE.CylinderGeometry(.465,.465,.08,48);
+const edgeGeometry = new THREE.TorusGeometry(.451,.0035,6,48);
 const raycaster = new THREE.Raycaster();
 const ground = new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const ndc = new THREE.Vector2();
@@ -102,7 +104,7 @@ function printedChip(value){
 function solidChip(value){
   const group=new THREE.Group();const mats=printedChip(value);
   const body=new THREE.Mesh(sharedGeometry,mats.body);body.castShadow=true;body.receiveShadow=true;group.add(body);
-  for(const y of [-.039,.039]){
+  for(const y of [-.036,.036]){
     const edge=new THREE.Mesh(edgeGeometry,mats.trim);edge.rotation.x=Math.PI/2;edge.position.y=y;group.add(edge);
   }
   return group;
@@ -132,7 +134,7 @@ function stitchOval(scene,rx,rz,y){
 }
 class Surface {
   constructor(mode){
-    this.mode=mode;this.scene=new THREE.Scene();this.models=new Map();this.geometrySignature='';
+    this.mode=mode;this.scene=new THREE.Scene();this.models=new Map();this.pendingThrows=[];this.geometrySignature='';
     this.physics=new ChipPhysics(mode==='host'?.17:-.016,impact=>playChipSound({kind:'collide',intensity:Math.min(1,.25+impact/5)}));
     this.renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor(0,0);
@@ -259,7 +261,7 @@ class Surface {
     this.dynamic.add(mesh);const record={mesh,body,value,...metadata};this.models.set(key,record);return record;
   }
   removeChip(key){const r=this.models.get(key);if(r){this.physics.remove(r.body);this.dynamic.remove(r.mesh);this.models.delete(key);}}
-  clearChips(){this.physics.clear();this.models.clear();this.dynamic.clear();}
+  clearChips(){this.pendingThrows=[];this.physics.clear();this.models.clear();this.dynamic.clear();}
   updatePhone(wallet,selected){
     this.selected=selected;
     const wanted=new Set();
@@ -299,14 +301,15 @@ class Surface {
     }
     if(incoming && Array.isArray(event.chipValues) && event.chipValues.reduce((n,v)=>n+v,0)===remaining){values.push(...event.chipValues.slice(0,120));remaining=0;}
     for(const value of [100,25,5,1])while(remaining>=value && values.length<120){values.push(value);remaining-=value;}
-    values.forEach((value,i)=>{
-      if(this.models.size>=120)return;
-      const endX=(Math.random()-.5)*2,endZ=.75+Math.random()*.8;
-      if(incoming){
-        const starts={top:[0,-this.boundDepth/2+.6],bottom:[0,this.boundDepth/2-.6],left:[-this.boundWidth/2+.6,0],right:[this.boundWidth/2-.6,0]};
-        const [x,z]=Number.isFinite(event.angle)?[Math.cos(event.angle)*(this.boundWidth/2-.6),Math.sin(event.angle)*(this.boundDepth/2-.6)]:starts[event.seat]||[0,-3];
-        this.addChip(`pot-${event.id}-${i}`,value,{x:x+(i%3)*.04,y:.55+i*.04,z:z+(i%2)*.06,velocity:[(endX-x)/.7,3.2+Math.random()*.35,(endZ-z)/.7],spin:[(Math.random()-.5)*2,Math.random()*3,(Math.random()-.5)*2]},{kind:'pot'});
-      }else this.addChip(`pot-rest-${i}`,value,{x:endX,y:.7+Math.floor(i/4)*.12,z:endZ,rotation:Math.PI/2+(Math.random()-.5)*.25},{kind:'pot'});
+    const available=Math.max(0,120-this.models.size-this.pendingThrows.length);
+    const visible=values.slice(0,available);
+    if(incoming){
+      const angles={bottom:Math.PI/2,left:Math.PI,top:-Math.PI/2,right:0};
+      const plan=planChipThrow({count:visible.length,width:this.boundWidth,depth:this.boundDepth,angle:Number.isFinite(event.angle)?event.angle:angles[event.seat]??-Math.PI/2});
+      visible.forEach((value,i)=>this.pendingThrows.push({key:`pot-${event.id}-${i}`,value,at:this.physics.world.time+plan[i].delay,options:plan[i].options}));
+    }else visible.forEach((value,i)=>{
+      // Restoring a pot uses the same wider landing area as live throws.
+      this.addChip(`pot-rest-${i}`,value,{x:(Math.random()-.5)*4,y:.7+Math.floor(i/8)*.1,z:(Math.random()-.5)*2.4+.45,rotation:Math.PI/2+(Math.random()-.5)*.1},{kind:'pot'});
     });
     this.lastBet=event?.id;this.animate();this.draw();
   }
@@ -329,9 +332,12 @@ class Surface {
     const tick=now=>{
       this.frame=null;
       if(!this.parent?.isConnected)return;
+      const ready=this.pendingThrows.filter(chip=>chip.at<=this.physics.world.time);
+      this.pendingThrows=this.pendingThrows.filter(chip=>chip.at>this.physics.world.time);
+      for(const chip of ready)this.addChip(chip.key,chip.value,chip.options,{kind:'pot'});
       this.physics.step((now-this.previousTime)/1000);this.previousTime=now;
       this.draw();
-      if(this.physics.active)this.frame=requestAnimationFrame(tick);
+      if(this.physics.active || this.pendingThrows.length)this.frame=requestAnimationFrame(tick);
     };
     this.frame=requestAnimationFrame(tick);
   }

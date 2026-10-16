@@ -8,7 +8,7 @@
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check server.mjs && node --check public/app.js && node --check public/table3d.js && node --check public/chip-physics.js && node --check public/chip-sound.js && node --check public/wallet.js && node --check public/requests.js && node --check game.mjs"
+    "check": "node --check server.mjs && node --check public/app.js && node --check public/table3d.js && node --check public/chip-physics.js && node --check public/chip-throws.js && node --check public/chip-sound.js && node --check public/wallet.js && node --check public/requests.js && node --check game.mjs"
   },
   "dependencies": {
     "cannon-es": "^0.20.0",

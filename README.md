@@ -4,6 +4,14 @@ A shared chip table for physical poker. Your laptop displays the pot; phones aro
 
 Both playing surfaces use real 3D geometry and rigid-body physics: walnut rails, leather, woven green felt, solid printed chips, gravity, chip collisions, soft shadows, and throws from each seat. The laptop is a full-screen felt surface with host controls hidden behind the gear icon. Phones show stacks at the bottom and selected chips in the middle, with turn status and Check/Call and Fold buttons. Materials are generated locally; chip contacts use locally stored recordings from Kenney's CC0 Casino Audio pack. Devices without WebGL fall back to CSS chip and table surfaces.
 
+## During a game
+
+The laptop shows the pot, whose turn it is, and each player’s current bet. Phones hold the chips and show the actions available on that player’s turn.
+
+![Laptop view during a six-player hand, showing the dealer, blinds, turn and current bets](docs/images/laptop-game.png)
+
+<img src="docs/images/mobile-game.png" alt="Mobile chip surface with Call and Fold buttons during a player’s turn" width="320">
+
 ## Start the table
 
 Requires Node.js 20 or later.
@@ -61,3 +69,5 @@ The browser smoke test uses local Google Chrome:
 ```sh
 npx playwright test
 ```
+
+To regenerate the README screenshots with local Chrome, start a separate empty server and run `DEMO_ORIGIN=http://localhost:3000 node scripts/capture-readme.mjs`. This creates a practice table in that server.
