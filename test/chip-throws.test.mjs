@@ -20,16 +20,31 @@ test('large throws use bounded launch lanes and short batches instead of a tall 
   }
 });
 
+test('a slow display emits the same batches at the same physics times as a fast display',()=>{
+  function emissions(frameStep,frames){
+    const physics=new ChipPhysics(),plan=planChipThrow({count:120,width:14.9,depth:9.5,angle:Math.PI,random:seeded()});
+    let emitted=0;const times=[];
+    for(let frame=0;frame<frames;frame++)physics.step(frameStep,()=>{
+      while(emitted<plan.length && plan[emitted].delay<=physics.world.time){times.push(physics.world.time);emitted++;}
+    });
+    return times;
+  }
+  const fast=emissions(1/120,240),slow=emissions(1/20,40);
+  assert.equal(fast.length,120);assert.deepEqual(slow,fast);
+  assert.ok(Math.max(...fast.map(time=>fast.filter(other=>other===time).length))<=5);
+});
+
 test('120 incoming chips settle completely and stay still after a crowded throw',()=>{
   for(const angle of [Math.PI,Math.PI/3]){
     const physics=new ChipPhysics(.17);physics.bounds(14.9,9.5);
     const plan=planChipThrow({count:120,width:14.9,depth:9.5,angle,random:seeded()});
     let emitted=0,maxLaunch=0;
     for(let frame=0;frame<1440;frame++){
-      while(emitted<plan.length && plan[emitted].delay<=physics.world.time){
-        const body=physics.create(plan[emitted++].options);maxLaunch=Math.max(maxLaunch,body.position.y);
-      }
-      physics.step(1/120);
+      physics.step(1/120,()=>{
+        while(emitted<plan.length && plan[emitted].delay<=physics.world.time){
+          const body=physics.create(plan[emitted++].options);maxLaunch=Math.max(maxLaunch,body.position.y);
+        }
+      });
     }
     assert.equal(emitted,120);assert.equal(physics.chips.size,120);
     assert.ok(maxLaunch<3.5,`Launch clearance built a ${maxLaunch}-unit tower.`);

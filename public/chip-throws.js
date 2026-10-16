@@ -13,7 +13,7 @@ export function planChipThrow({count,width,depth,angle,random=Math.random}) {
     const z=Math.max(-halfZ,Math.min(halfZ,startZ+tangentZ*lane));
     const targetX=(random()-.5)*Math.min(4.4,1.4+count*.035,width*.42);
     const targetZ=(random()-.5)*Math.min(2.2,.6+count*.02,depth*.36)+1;
-    return {delay:Math.floor(i/lanes)*.055,options:{x,y:.62,z,
+    return {delay:Math.floor(i/lanes)*.055,options:{x,y:.62,z,flat:true,
       velocity:[(targetX-x)/.82,2.2+random()*.25,(targetZ-z)/.82],
       spin:[(random()-.5)*.5,(random()-.5)*1.2,(random()-.5)*.5]}};
   });

@@ -18,7 +18,8 @@ test('a large throw arrives in batches and its rendered pile stops moving',async
   });
   await expect(page.locator('.table-stage.has-3d canvas')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>window.throwWorld?.chips.size || 0),{timeout:20000}).toBe(120);
-  await expect.poll(()=>page.evaluate(()=>!throwWorld.active),{timeout:45000}).toBe(true);
+  try {await expect.poll(()=>page.evaluate(()=>!throwWorld.active),{timeout:45000}).toBe(true);}
+  catch(error){throw new Error(`${error.message}\n${JSON.stringify(await page.evaluate(()=>({time:throwWorld.world.time,awake:[...throwWorld.chips].filter(body=>body.sleepState!==2).map(body=>({y:body.position.y,speed:body.velocity.length(),spin:body.angularVelocity.length(),rest:body.restPose?throwWorld.world.time-body.restPose.since:null}))})))}`);}
   const before=await page.evaluate(()=>[...throwWorld.chips].map(body=>[...body.position.toArray(),...body.quaternion.toArray()]));
   await page.waitForTimeout(600);
   expect(await page.evaluate(()=>[...throwWorld.chips].map(body=>[...body.position.toArray(),...body.quaternion.toArray()]))).toEqual(before);

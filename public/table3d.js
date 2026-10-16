@@ -8,9 +8,11 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const palette = {1:['#e3dcc2','#76694b'],5:['#a74035','#f0dfbf'],25:['#315f81','#e5e6d2'],100:['#252d2b','#e3d3a5']};
 const surfaces = new Map();
 const chipMaterials = new Map();
-// Leave a small visual clearance inside the collider so settled faces cannot z-fight.
-const sharedGeometry = new THREE.CylinderGeometry(.465,.465,.08,48);
-const edgeGeometry = new THREE.TorusGeometry(.451,.0035,6,48);
+// Keep the round mesh inside the flat facets of the 12-sided collider.
+// Both the face and its rim need clearance to avoid z-fighting at contact.
+const visualRadius=.47*Math.cos(Math.PI/12)-.002;
+const sharedGeometry = new THREE.CylinderGeometry(visualRadius,visualRadius,.08,48);
+const edgeGeometry = new THREE.TorusGeometry(visualRadius-.012,.0035,6,48);
 const raycaster = new THREE.Raycaster();
 const ground = new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const ndc = new THREE.Vector2();
@@ -309,7 +311,7 @@ class Surface {
       visible.forEach((value,i)=>this.pendingThrows.push({key:`pot-${event.id}-${i}`,value,at:this.physics.world.time+plan[i].delay,options:plan[i].options}));
     }else visible.forEach((value,i)=>{
       // Restoring a pot uses the same wider landing area as live throws.
-      this.addChip(`pot-rest-${i}`,value,{x:(Math.random()-.5)*4,y:.7+Math.floor(i/8)*.1,z:(Math.random()-.5)*2.4+.45,rotation:Math.PI/2+(Math.random()-.5)*.1},{kind:'pot'});
+      this.addChip(`pot-rest-${i}`,value,{x:(Math.random()-.5)*4,y:.7+Math.floor(i/8)*.1,z:(Math.random()-.5)*2.4+.45,flat:true,rotation:Math.PI/2+(Math.random()-.5)*.1},{kind:'pot'});
     });
     this.lastBet=event?.id;this.animate();this.draw();
   }
@@ -332,10 +334,13 @@ class Surface {
     const tick=now=>{
       this.frame=null;
       if(!this.parent?.isConnected)return;
-      const ready=this.pendingThrows.filter(chip=>chip.at<=this.physics.world.time);
-      this.pendingThrows=this.pendingThrows.filter(chip=>chip.at>this.physics.world.time);
-      for(const chip of ready)this.addChip(chip.key,chip.value,chip.options,{kind:'pot'});
-      this.physics.step((now-this.previousTime)/1000);this.previousTime=now;
+      this.physics.step((now-this.previousTime)/1000,()=>{
+        if(!this.pendingThrows.length)return;
+        const ready=this.pendingThrows.filter(chip=>chip.at<=this.physics.world.time);
+        this.pendingThrows=this.pendingThrows.filter(chip=>chip.at>this.physics.world.time);
+        for(const chip of ready)this.addChip(chip.key,chip.value,chip.options,{kind:'pot'});
+      });
+      this.previousTime=now;
       this.draw();
       if(this.physics.active || this.pendingThrows.length)this.frame=requestAnimationFrame(tick);
     };

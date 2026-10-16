@@ -16,13 +16,17 @@ export class ChipPhysics {
     this.chips = new Set();this.walls=[];this.onImpact=onImpact;
     this.lastImpact=-1;this.contactTimes=new Map();this.accumulator=0;
   }
-  create({x=0,y=1,z=0,rotation=Math.PI/2,velocity,spin}={}) {
+  create({x=0,y=1,z=0,rotation=Math.PI/2,velocity,spin,flat=false}={}) {
     const body=new CANNON.Body({mass:.011,material:this.chipMaterial,shape:this.shape,allowSleep:true,sleepSpeedLimit:.3,sleepTimeLimit:.6,linearDamping:.35,angularDamping:.8});
     body.position.set(x,y,z);body.quaternion.setFromEuler(0,rotation,0);
+    // Pot chips slide, bounce and spin on the tabletop. Keeping them flat
+    // avoids unstable edge contacts between dozens of very thin cylinders.
+    if(flat)body.angularFactor.set(0,1,0);
     // Newly placed chips must start above neighbours, rather than intersecting
     // them and making the solver violently eject both chips.
     this.placeClear(body);
     if(velocity)body.velocity.set(...velocity);if(spin)body.angularVelocity.set(...spin);
+    if(flat){body.angularVelocity.x=0;body.angularVelocity.z=0;}
     body.addEventListener('collide',event=>{
       if(body.holdTarget || event.body.holdTarget)return;
       const impact=event.contact.getImpactVelocityAlongNormal();
@@ -96,11 +100,12 @@ export class ChipPhysics {
       this.placeClear(body);body.wakeUp();
     }
   }
-  step(elapsed){
+  step(elapsed,beforeStep){
     // Thin chips need substeps shorter than a fast chip can cross its own thickness.
     const fixedStep=1/240;
     this.accumulator+=Math.min(Math.max(elapsed,0),.06);
     while(this.accumulator+1e-10>=fixedStep){
+      beforeStep?.();
       this.world.step(fixedStep);this.accumulator-=fixedStep;
       const supported=new Set();
       for(const contact of this.world.contacts){
@@ -109,15 +114,22 @@ export class ChipPhysics {
         if(contact.ni.y<-.35)supported.add(contact.bi);
       }
       for(const body of this.chips){
-        if(body.holdTarget || body.sleepState===CANNON.Body.SLEEPING || !supported.has(body)){delete body.restPose;continue;}
+        if(body.holdTarget || body.sleepState===CANNON.Body.SLEEPING){delete body.restPose;continue;}
+        if(!supported.has(body)){
+          // A one-substep gap in a resting contact is solver noise. Preserve
+          // its pose window briefly, but only sleep while actually supported.
+          if(this.world.time-(body.lastSupportedAt ?? -Infinity)>.05)delete body.restPose;
+          continue;
+        }
+        body.lastSupportedAt=this.world.time;
         const rest=body.restPose;
         const q=body.quaternion;
         // Thin stacked chips can have noisy instantaneous velocities even when
         // their actual poses barely move. Sleep supported, stable poses too;
         // never use this rule for falling, sliding, or finger-held chips.
-        if(!rest || body.position.distanceTo(rest.position)>.015 || Math.abs(q.x*rest.rotation.x+q.y*rest.rotation.y+q.z*rest.rotation.z+q.w*rest.rotation.w)<Math.cos(.04/2)){
+        if(!rest || body.position.distanceTo(rest.position)>.025 || Math.abs(q.x*rest.rotation.x+q.y*rest.rotation.y+q.z*rest.rotation.z+q.w*rest.rotation.w)<Math.cos(.08/2)){
           body.restPose={position:body.position.clone(),rotation:q.clone(),since:this.world.time};
-        }else if(this.world.time-rest.since>.75){body.sleep();delete body.restPose;}
+        }else if(this.world.time-rest.since>.5){body.sleep();delete body.restPose;}
       }
     }
     for(const [key,time]of this.contactTimes)if(this.world.time-time>1)this.contactTimes.delete(key);
