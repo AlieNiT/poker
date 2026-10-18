@@ -15,7 +15,7 @@ await mkdir(dataDir, { recursive: true });
 try {
   const saved = JSON.parse(await readFile(path.join(dataDir, 'tables.json'), 'utf8'));
   for (const room of saved) {
-    room.smallBlind ??= 1; room.bigBlind ??= 2;
+    room.smallBlind ??= 5; room.bigBlind ??= 10;
     room.betting ??= {phase:room.players.some(p => p.contribution > 0) ? 'showdown' : 'waiting',street:'preflop',actorId:null};
     room.players.forEach(p => { p.roundContribution ??= 0; });
     // Old undo snapshots predate turn handling and cannot restore a valid turn.

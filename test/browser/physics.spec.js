@@ -101,7 +101,7 @@ test('picked chips follow the finger silently, drop on release, and still throw 
   await phone.waitForTimeout(50);
   await cdp.send('Input.dispatchTouchEvent', {type: 'touchEnd', touchPoints: []});
   await cdp.detach();
-  await expect(page.locator('.pot-number')).toHaveText('103');
+  await expect(page.locator('.pot-number')).toHaveText('115');
   await page.bringToFront();
   try{
     await expect.poll(() => page.evaluate(() => physicsCheck.world && !physicsCheck.world.active), {timeout: 20000}).toBe(true);

@@ -37,14 +37,14 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   const cdp=await context.newCDPSession(phone);
   await expect(phone.locator('#exchange-button')).toBeHidden();
   // Empty a denomination, exchange another chip, and return the staged group.
-  for(let i=0;i<6;i++)await phone.locator('.wallet-stack[data-value="25"]').tap();
-  await expect(phone.locator('#selection-value')).toHaveText('150');
+  for(let i=0;i<5;i++)await phone.locator('.wallet-stack[data-value="25"]').tap();
+  await expect(phone.locator('#selection-value')).toHaveText('125');
   await phone.getByRole('button',{name:'Exchange',exact:true}).click();
   await phone.getByRole('button',{name:'Exchange for 25 chips',exact:true}).click();
-  await expect(phone.locator('.wallet-stack[data-value="25"] .stack-count')).toHaveText('4 × 25');
+  await expect(phone.locator('.wallet-stack[data-value="25"] .stack-count')).toHaveText('2 × 25');
   await dragGroup(phone,cdp,.42,.9);await endDrag(cdp);
   await expect(phone.locator('.loose-chip')).toHaveCount(0);
-  await expect(phone.locator('.wallet-stack[data-value="25"] .stack-count')).toHaveText('10 × 25');
+  await expect(phone.locator('.wallet-stack[data-value="25"] .stack-count')).toHaveText('7 × 25');
   // A single chip goes back when its finger reaches the stack area.
   await phone.locator('.wallet-stack[data-value="25"]').tap();
   const chip=await phone.locator('.loose-chip').boundingBox(),mat=await phone.locator('.chip-mat').boundingBox();
@@ -58,7 +58,7 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   await endDrag(cdp);
   expect(await phone.evaluate(()=>[...chipWorld.chips].some(b=>b.holdTarget))).toBe(false);
   expect(await phone.evaluate(()=>[...chipWorld.chips].map(b=>[b.position.x,b.position.y,b.position.z]))).toEqual(poses);
-  await expect(page.locator('.pot-number')).toHaveText('3');
+  await expect(page.locator('.pot-number')).toHaveText('15');
   // Widely separated chips can still be thrown, even if the SSE status drops.
   for(const y of [.68,.26]){
     await phone.locator('.wallet-stack[data-value="25"]').tap();
@@ -68,8 +68,8 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   }
   await phone.evaluate(()=>window.dispatchEvent(new Event('offline')));
   await dragGroup(phone,cdp,.45,.04);await endDrag(cdp);
-  await expect(phone.locator('.player-balance')).toHaveText('549');
-  await expect(page.locator('.pot-number')).toHaveText('53');
+  await expect(phone.locator('.player-balance')).toHaveText('545');
+  await expect(page.locator('.pot-number')).toHaveText('65');
   await send(page,host,second.token,'call');await send(page,host,host.token,'next-street');await send(page,host,second.token,'check');
   await expect(phone.locator('.turn-status')).toHaveText('Your turn');
   await phone.locator('.wallet-stack[data-value="25"]').tap();
@@ -81,8 +81,8 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
     else await route.continue();
   });
   await dragGroup(phone,cdp,.42,.04);await endDrag(cdp);
-  await expect(phone.locator('.player-balance')).toHaveText('524');
-  await expect(page.locator('.pot-number')).toHaveText('127');expect(requests).toBe(2);
+  await expect(phone.locator('.player-balance')).toHaveText('520');
+  await expect(page.locator('.pot-number')).toHaveText('135');expect(requests).toBe(2);
   await phone.unroute(`**/api/rooms/${host.code}/action`);
   await send(page,host,second.token,'call');await send(page,host,host.token,'next-street');await send(page,host,second.token,'check');
   await expect(phone.locator('.turn-status')).toHaveText('Your turn');
@@ -91,11 +91,11 @@ test('stack returns, change, cancelled all-in, repeated throws and all-in side p
   await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
   expect(await phone.evaluate(()=>[...chipWorld.chips].some(b=>b.holdTarget))).toBe(false);
   await phone.reload();
-  await expect(phone.locator('.wallet-stack[data-value="25"] .stack-count')).toHaveText('7 × 25');
+  await expect(phone.locator('.wallet-stack[data-value="25"] .stack-count')).toHaveText('4 × 25');
   await phone.locator('.wallet-stack[data-value="25"]').tap();
   await dragGroup(phone,cdp,.85,.04);await endDrag(cdp);
   await expect(phone.locator('.player-balance')).toHaveText('0');
-  await expect(page.locator('.pot-number')).toHaveText('676');
+  await expect(page.locator('.pot-number')).toHaveText('680');
   // The other player's shorter all-in still creates the normal main pot/refund.
   await send(page,host,second.token,'all-in');
   await send(page,host,host.token,'next-street');

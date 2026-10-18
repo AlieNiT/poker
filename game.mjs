@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import {denominations} from './public/wallet.js';
 
 export const SEATS = ['bottom', 'left', 'top', 'right'];
 export const seatsFor = room => room.seatIds || SEATS;
@@ -11,7 +12,7 @@ export function rememberAction(room, before) {
   room.undoHistory = [...(room.undoHistory || []), before].slice(-2);
 }
 export function createRoom(code, hostToken) {
-  return { code, hostToken, name: 'The home game', hand: 1, startingStack: 600, playerCount: 6, seatIds: Array.from({length:6}, (_,i) => `seat-${i}`), setupComplete: false, undoHistory: [], smallBlind: 1, bigBlind: 2, betting: {phase:'waiting', street:'preflop', actorId:null},
+  return { code, hostToken, name: 'The home game', hand: 1, startingStack: 600, playerCount: 6, seatIds: Array.from({length:6}, (_,i) => `seat-${i}`), setupComplete: false, undoHistory: [], smallBlind: 5, bigBlind: 10, betting: {phase:'waiting', street:'preflop', actorId:null},
     players: [], history: [], lastEvent: null, processed: [], createdAt: Date.now(), revision: 0 };
 }
 export function potsFor(room) {
@@ -43,6 +44,11 @@ export function log(room, message, kind = 'info', event = {}) {
   room.lastEvent = entry;
   room.revision++;
 }
+function chipAmount(value, min = 5, max = 1000000) {
+  integer(value, min, max);
+  if (value % 5) throw new Error('Chip amounts must be multiples of 5.');
+  return value;
+}
 function integer(value, min = 1, max = 1000000) {
   if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error(`Enter a whole number from ${min} to ${max.toLocaleString()}.`);
   return value;
@@ -62,11 +68,11 @@ export function joinRoom(room, { name, seat }, token = randomUUID()) {
 export function bet(room, player, amount, isCall = false, chipValues, chipCounts) {
   if (!player.inHand) throw new Error('You are out of this hand. Wait for the next one.');
   if (isCall) amount = Math.min(player.balance, Math.max(...room.players.map(p => p.contribution), 0) - player.contribution);
-  integer(amount);
+  chipAmount(amount);
   if (amount > player.balance) throw new Error('You do not have enough chips.');
-  if (chipValues !== undefined && (!Array.isArray(chipValues) || chipValues.length>250 || chipValues.some(v=>![1,5,25,100].includes(v)) || chipValues.reduce((n,v)=>n+v,0)!==amount)) throw new Error('The selected chips do not match the amount.');
+  if (chipValues !== undefined && (!Array.isArray(chipValues) || chipValues.length>250 || chipValues.some(v=>!denominations.includes(v)) || chipValues.reduce((n,v)=>n+v,0)!==amount)) throw new Error('The selected chips do not match the amount.');
   if(chipCounts!==undefined){
-    const values=[1,5,25,100];
+    const values=denominations;
     if(!chipCounts || typeof chipCounts!=='object' || Array.isArray(chipCounts) || Object.keys(chipCounts).some(v=>!values.includes(Number(v))) || values.some(v=>!Number.isSafeInteger(chipCounts[v]) || chipCounts[v]<0) || values.reduce((sum,v)=>sum+v*chipCounts[v],0)!==amount)throw new Error('The selected chips do not match the amount.');
   }
   player.balance -= amount;
@@ -167,7 +173,7 @@ export function playerAction(room, player, action, data = {}) {
     log(room, `${player.name} checked`, 'check', {playerId:player.id});
   } else {
     const amount = action === 'call' ? options.callAmount : action === 'all-in' ? player.balance : data.amount;
-    integer(amount);
+    chipAmount(amount);
     if (amount > player.balance) throw new Error('You do not have enough chips.');
     const total = player.roundContribution + amount;
     if (total < b.currentBet && amount !== player.balance) throw new Error(`Call ${options.callAmount} or go all in.`);
@@ -215,7 +221,7 @@ export function hostAction(room, action, data) {
     }
     case 'loan': {
       if (!player) throw new Error('Choose a player.');
-      const amount = integer(data.amount);
+      const amount = chipAmount(data.amount);
       if (room.betting?.phase !== 'waiting') throw new Error('The bank can move chips after this hand.');
       if (player.balance === 0 && player.contribution > 0) throw new Error('An all-in player can receive a loan after this hand.');
       if (player.balance + amount > 1000000) throw new Error('A stack cannot exceed 1,000,000 chips.');
@@ -226,7 +232,7 @@ export function hostAction(room, action, data) {
     case 'repay': {
       if (room.betting?.phase !== 'waiting') throw new Error('The bank can move chips after this hand.');
       if (!player) throw new Error('Choose a player.');
-      const amount = integer(data.amount);
+      const amount = chipAmount(data.amount);
       if (amount > player.debt || amount > player.balance) throw new Error('Repayment cannot exceed the loan or available chips.');
       player.balance -= amount; player.debt -= amount;
       log(room, `${player.name} repaid ${amount.toLocaleString()}`, 'loan');
@@ -253,7 +259,7 @@ export function hostAction(room, action, data) {
         const sorted = room.players.filter(p => winners.includes(p.id)).sort((a,b) => seatsFor(room).indexOf(a.seat) - seatsFor(room).indexOf(b.seat));
         if (sorted.length !== winners.length) throw new Error('A selected player is no longer at the table.');
         sorted.forEach((p, i) => {
-          const amount = Math.floor(pot.amount / sorted.length) + (i < pot.amount % sorted.length ? 1 : 0);
+          const amount = 5 * (Math.floor(pot.amount / 5 / sorted.length) + (i < (pot.amount / 5) % sorted.length ? 1 : 0));
           payouts.set(p.id, (payouts.get(p.id) || 0) + amount);
         });
         messages.push(pot.refund ? `${sorted[0].name} receives ${pot.amount} uncalled chips` : `${sorted.map(p => p.name).join(' & ')} ${sorted.length > 1 ? 'split' : 'wins'} ${index === 0 ? 'the main pot' : `side pot ${index}`} · ${pot.amount.toLocaleString()}`);
@@ -265,11 +271,11 @@ export function hostAction(room, action, data) {
       break;
     }
     case 'settings': {
-      const smallBlind = data.smallBlind === undefined ? room.smallBlind : integer(data.smallBlind,1,100000);
-      const bigBlind = data.bigBlind === undefined ? room.bigBlind : integer(data.bigBlind,1,100000);
+      const smallBlind = data.smallBlind === undefined ? room.smallBlind : chipAmount(data.smallBlind,5,100000);
+      const bigBlind = data.bigBlind === undefined ? room.bigBlind : chipAmount(data.bigBlind,5,100000);
       if (smallBlind > bigBlind) throw new Error('The big blind must be at least the small blind.');
       if (room.betting?.phase !== 'waiting' && (smallBlind !== room.smallBlind || bigBlind !== room.bigBlind)) throw new Error('Change the blinds between hands.');
-      const startingStack = data.startingStack === undefined ? room.startingStack : integer(data.startingStack, 1, 100000);
+      const startingStack = data.startingStack === undefined ? room.startingStack : chipAmount(data.startingStack, 5, 100000);
       const playerCount = data.playerCount === undefined ? seatsFor(room).length : integer(data.playerCount, 2, 20);
       if (playerCount !== seatsFor(room).length && room.players.length) throw new Error('Choose the player count before players join.');
       if (typeof data.name === 'string' && data.name.trim()) room.name = data.name.trim().slice(0, 32);

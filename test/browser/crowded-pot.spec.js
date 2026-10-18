@@ -14,7 +14,7 @@ test('a large throw arrives in batches and its rendered pile stops moving',async
     document.querySelector('#app').innerHTML='<div class="host-shell immersive"><main class="table-stage"></main></div>';
     const stage=document.querySelector('.table-stage');
     mountHost3D(stage,0,null,'large-throw');
-    mountHost3D(stage,120,{id:'many-chips',kind:'bet',angle:Math.PI,amount:120,chipCounts:{1:120,5:0,25:0,100:0}},'large-throw');
+    mountHost3D(stage,600,{id:'many-chips',kind:'bet',angle:Math.PI,amount:600,chipCounts:{5:120,10:0,25:0,50:0,100:0}},'large-throw');
   });
   await expect(page.locator('.table-stage.has-3d canvas')).toBeVisible();
   await expect.poll(()=>page.evaluate(()=>window.throwWorld?.chips.size || 0),{timeout:20000}).toBe(120);

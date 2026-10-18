@@ -54,7 +54,7 @@ test('turns gate phone gestures and equal-size call/fold buttons, show round bet
   const first=phones[0].phone,second=phones[1].phone;
   await expect(first.locator('#call-button')).toBeDisabled();await expect(first.locator('#fold-button')).toBeDisabled();
   await send(page,host,remote[1].token,'call');await expect(first.locator('.turn-status')).toHaveText('Your turn');
-  await expect(first.locator('#call-button')).toHaveText('Call 2');await expect(first.locator('#call-button')).toBeEnabled();
+  await expect(first.locator('#call-button')).toHaveText('Call 10');await expect(first.locator('#call-button')).toBeEnabled();
   const left=await first.locator('#call-button').boundingBox(),right=await first.locator('#fold-button').boundingBox();
   expect(left.width).toBeCloseTo(right.width,0);expect(left.height).toBe(right.height);
   await first.locator('.wallet-stack[data-value="25"]').tap();
@@ -62,8 +62,8 @@ test('turns gate phone gestures and equal-size call/fold buttons, show round bet
   await push(first,phones[0].context,'down');await expect(first.locator('.loose-chip')).toHaveCount(0);
   await expect(first.locator('#call-button')).toBeEnabled();await expect(first.locator('#fold-button')).toBeEnabled();
   await first.locator('.wallet-stack[data-value="25"]').tap();await push(first,phones[0].context,'up');
-  await expect(page.locator('.pot-number')).toHaveText('30');await expect(page.locator('.round-bet')).toHaveCount(4);
-  await expect(first.locator('#call-button')).toBeDisabled();await expect(second.locator('#call-button')).toHaveText('Call 24');
+  await expect(page.locator('.pot-number')).toHaveText('50');await expect(page.locator('.round-bet')).toHaveCount(4);
+  await expect(first.locator('#call-button')).toBeDisabled();await expect(second.locator('#call-button')).toHaveText('Call 20');
   await second.locator('#call-button').click();await send(page,host,remote[0].token,'call');await send(page,host,remote[1].token,'call');
   await expect(page.locator('.pot-number')).toHaveText('100');await expect(page.locator('.round-bet')).toHaveCount(0);
   await page.getByRole('button',{name:'Deal flop',exact:true}).click();
@@ -86,7 +86,7 @@ test('turns gate phone gestures and equal-size call/fold buttons, show round bet
 test('practice, showdown payout, settings, preview and saved tables retain turn state',async({page})=>{
   const host=await setupHost(page,4);
   await controls(page);await page.getByRole('button',{name:'Practice table',exact:true}).click();
-  await expect(page.locator('.pot-number')).toHaveText('3');
+  await expect(page.locator('.pot-number')).toHaveText('15');
   await expect(page.getByRole('button',{name:'Award the pot'})).toBeDisabled();
   let state=await stateFor(page,host);
   for(let i=0;state.betting.phase!=='showdown';i++){
@@ -98,7 +98,7 @@ test('practice, showdown payout, settings, preview and saved tables retain turn 
     }
   }
   await page.getByRole('button',{name:'Award the pot'}).click();await expect(page.locator('.award-pot')).toHaveCount(1);
-  await page.locator('.winner-options label').first().click();await page.getByRole('button',{name:'Award 8',exact:true}).click();
+  await page.locator('.winner-options label').first().click();await page.getByRole('button',{name:'Award 40',exact:true}).click();
   await expect(page.locator('.pot-number')).toHaveText('0');await controls(page);
   await page.getByRole('button',{name:'Table settings',exact:true}).click();
   await page.getByLabel('Table name').fill('Friday with friends');await page.getByRole('button',{name:'Save',exact:true}).click();

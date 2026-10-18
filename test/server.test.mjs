@@ -49,7 +49,7 @@ test('server enforces roles, deduplicates bets, hides credentials and restores t
       }
     }
     await act(host,'start-hand');
-    assert.deepEqual(current.players.map(p=>p.balance),[599,598]);
+    assert.deepEqual(current.players.map(p=>p.balance),[595,590]);
     const savedTurn=structuredClone(current.betting);
     await stop();await start();current=(await request(route,host)).data.state;
     assert.deepEqual(current.betting,savedTurn);
@@ -58,26 +58,26 @@ test('server enforces roles, deduplicates bets, hides credentials and restores t
     assert.equal((await request(route+'/action',a.token,{action:'loan',playerId:a.playerId,amount:500,requestId:'unauthorized'})).status,403);
     assert.equal((await request(route+'/action',host,{action:'bet',playerId:a.playerId,amount:10,requestId:'host-bet'})).status,403);
     const wager={action:'bet',amount:25,turnId:current.betting.turnId,requestId:'same-bet'};
-    await act(a.token,'bet',wager);assert.equal(current.players[0].balance,574);
+    await act(a.token,'bet',wager);assert.equal(current.players[0].balance,570);
     const revision=current.revision;
     const duplicate=await request(route+'/action',a.token,wager);assert.equal(duplicate.data.state.revision,revision);
-    assert.equal(duplicate.data.state.players[0].balance,574);
+    assert.equal(duplicate.data.state.players[0].balance,570);
     await act(b.token,'call');assert.equal(current.betting.phase,'between');
     await showdown();await act(host,'award',{winners:{'pot-0':[a.playerId]}});
-    assert.deepEqual(current.players.map(p=>p.balance),[626,574]);
+    assert.deepEqual(current.players.map(p=>p.balance),[630,570]);
     await act(host,'loan',{playerId:a.playerId,amount:100});
     await stop();await start();
     const restored=await request(route,a.token);assert.equal(restored.status,200);assert.equal(restored.data.playerId,a.playerId);
-    current=restored.data.state;assert.equal(current.players[0].balance,726);assert.equal(current.players[0].debt,100);
+    current=restored.data.state;assert.equal(current.players[0].balance,730);assert.equal(current.players[0].debt,100);
     await act(host,'start-hand');assert.equal(current.betting.buttonId,b.playerId);
     const allIn={action:'all-in',requestId:'bob-all-in',turnId:current.betting.turnId};
     await act(b.token,'all-in',allIn);assert.equal(current.players[1].balance,0);
-    assert.equal((await request(route+'/action',b.token,allIn)).data.state.players[1].contribution,574);
+    assert.equal((await request(route+'/action',b.token,allIn)).data.state.players[1].contribution,570);
     const callTurn=current.betting.turnId;
     await act(a.token,'call',{requestId:'alice-call'});
-    assert.equal(current.betting.phase,'between');assert.deepEqual(current.pots.map(p=>p.amount),[1148]);
+    assert.equal(current.betting.phase,'between');assert.deepEqual(current.pots.map(p=>p.amount),[1140]);
     await showdown();await act(host,'award',{winners:{'pot-0':[b.playerId]}});
-    assert.deepEqual(current.players.map(p=>p.balance),[152,1148]);
+    assert.deepEqual(current.players.map(p=>p.balance),[160,1140]);
     assert.equal((await request(route+'/action',a.token,{action:'undo',requestId:'player-undo'})).status,403);
     await act(host,'undo',{requestId:'undo-award'});assert.equal(current.betting.phase,'showdown');assert.equal(current.hand,2);
     const undoRevision=current.revision;

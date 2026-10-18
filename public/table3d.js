@@ -1,3 +1,4 @@
+import {denominations} from './wallet.js';
 import {planChipThrow} from './chip-throws.js';
 import * as THREE from '/vendor/three/three.module.js';
 import {ChipPhysics} from './chip-physics.js';
@@ -5,7 +6,7 @@ import {playChipSound} from './chip-sound.js';
 
 // All materials are generated locally. The table needs no image downloads or CDN.
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const palette = {1:['#e3dcc2','#76694b'],5:['#a74035','#f0dfbf'],25:['#315f81','#e5e6d2'],100:['#252d2b','#e3d3a5']};
+const palette = {5:['#a74035','#f0dfbf'],10:['#e3dcc2','#76694b'],25:['#315f81','#e5e6d2'],50:['#417449','#f0dfbf'],100:['#252d2b','#e3d3a5']};
 const surfaces = new Map();
 const chipMaterials = new Map();
 // Keep the round mesh inside the flat facets of the 12-sided collider.
@@ -267,10 +268,10 @@ class Surface {
   updatePhone(wallet,selected){
     this.selected=selected;
     const wanted=new Set();
-    for(const value of [1,5,25,100])for(let i=0;i<Math.min(12,wallet[value]);i++)wanted.add(`bank-${value}-${i}`);
+    for(const value of denominations)for(let i=0;i<Math.min(12,wallet[value]);i++)wanted.add(`bank-${value}-${i}`);
     for(const c of selected)wanted.add(c.id);
     for(const key of [...this.models.keys()])if(!wanted.has(key))this.removeChip(key);
-    for(const value of [1,5,25,100])for(let i=0;i<Math.min(12,wallet[value]);i++){
+    for(const value of denominations)for(let i=0;i<Math.min(12,wallet[value]);i++){
       const key=`bank-${value}-${i}`;
       if(!this.models.has(key)){
         const point=this.target(this.parent.querySelector(`.wallet-stack[data-value="${value}"] .stack-visual`),13);
@@ -298,11 +299,11 @@ class Surface {
     if(!incoming)this.clearChips();
     const values=[];
     if(incoming && event.chipCounts){
-      for(const value of [100,25,5,1])for(let i=0;i<event.chipCounts[value] && values.length<120;i++)values.push(value);
+      for(const value of [...denominations].reverse())for(let i=0;i<event.chipCounts[value] && values.length<120;i++)values.push(value);
       remaining=0;
     }
     if(incoming && Array.isArray(event.chipValues) && event.chipValues.reduce((n,v)=>n+v,0)===remaining){values.push(...event.chipValues.slice(0,120));remaining=0;}
-    for(const value of [100,25,5,1])while(remaining>=value && values.length<120){values.push(value);remaining-=value;}
+    for(const value of [...denominations].reverse())while(remaining>=value && values.length<120){values.push(value);remaining-=value;}
     const available=Math.max(0,120-this.models.size-this.pendingThrows.length);
     const visible=values.slice(0,available);
     if(incoming){

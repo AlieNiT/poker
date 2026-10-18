@@ -20,7 +20,7 @@ test('eight seats, exact starting chips, live undo and consumed history work tog
   await phone.getByLabel('Your name').fill('Alex');await phone.getByRole('radio',{name:'Seat 1',exact:true}).click();
   await phone.getByRole('button',{name:'Join',exact:true}).click();
   await expect(phone.locator('.player-balance')).toHaveText('600');
-  for(const [value,count] of [[1,10],[5,8],[25,6],[100,4]])await expect(phone.locator(`[data-value="${value}"] .stack-count`)).toHaveText(`${count} × ${value}`);
+  for(const [value,count] of [[5,5],[10,5],[25,5],[50,4],[100,2]])await expect(phone.locator(`[data-value="${value}"] .stack-count`)).toHaveText(`${count} × ${value}`);
   const guests=[];
   for(let i=1;i<8;i++){
     const joined=await page.request.post(route+'/join',{data:{name:`Guest ${i+1}`,seat:`seat-${i}`}});expect(joined.ok()).toBeTruthy();guests.push(await joined.json());
@@ -30,8 +30,8 @@ test('eight seats, exact starting chips, live undo and consumed history work tog
   const player=await phone.evaluate(code=>JSON.parse(localStorage.getItem(`clubhouse-player-${code}`)),host.code);
   const loan=await page.request.post(route+'/action',{headers:{Authorization:`Bearer ${host.token}`},data:{action:'loan',playerId:player.playerId,amount:150,requestId:'rollover-loan'}});
   expect(loan.ok()).toBeTruthy();await expect(phone.locator('.player-balance')).toHaveText('750');
-  // The loan adds enough small chips to cascade through ones, fives and 25s.
-  for(const value of [1,5,25]){
+  // The loan adds enough small chips to cascade through the smaller denominations.
+  for(const value of [5,10,25,50]){
     const text=await phone.locator(`[data-value="${value}"] .stack-count`).textContent();
     expect(Number(text.split(' × ')[0])).toBeLessThanOrEqual(10);
   }
@@ -40,15 +40,15 @@ test('eight seats, exact starting chips, live undo and consumed history work tog
   await send(page,host,host.token,'start-hand',{buttonId:state.players[5].id});
   await expect(phone.locator('.turn-status')).toHaveText('Your turn');
   await send(page,host,player.token,'bet',{amount:25});await expect(phone.locator('.player-balance')).toHaveText('575');
-  await send(page,host,guests[0].token,'call');await expect(page.locator('.pot-number')).toHaveText('53');
+  await send(page,host,guests[0].token,'call');await expect(page.locator('.pot-number')).toHaveText('65');
   await page.getByRole('button',{name:'Table controls',exact:true}).click();
   const undo=page.getByRole('button',{name:'Undo last action',exact:true});
-  await undo.click();await expect(page.locator('.pot-number')).toHaveText('28');
+  await undo.click();await expect(page.locator('.pot-number')).toHaveText('40');
   await expect(phone.locator('.player-balance')).toHaveText('575');
-  await undo.click();await expect(page.locator('.pot-number')).toHaveText('3');
+  await undo.click();await expect(page.locator('.pot-number')).toHaveText('15');
   await expect(phone.locator('.player-balance')).toHaveText('600');await expect(undo).toBeDisabled();
-  for(const [value,count] of [[1,10],[5,8],[25,6],[100,4]])await expect(phone.locator(`[data-value="${value}"] .stack-count`)).toHaveText(`${count} × ${value}`);
-  await send(page,host,player.token,'bet',{amount:2});await expect(undo).toBeEnabled();await expect(undo.locator('small')).toHaveText('1');
+  for(const [value,count] of [[5,5],[10,5],[25,5],[50,4],[100,2]])await expect(phone.locator(`[data-value="${value}"] .stack-count`)).toHaveText(`${count} × ${value}`);
+  await send(page,host,player.token,'bet',{amount:10});await expect(undo).toBeEnabled();await expect(undo.locator('small')).toHaveText('1');
   await undo.click();await expect(undo).toBeDisabled();await expect(phone.locator('.player-balance')).toHaveText('600');
   await phone.reload();await expect(phone.locator('.player-balance')).toHaveText('600');
   expect(errors).toEqual([]);await context.close();
