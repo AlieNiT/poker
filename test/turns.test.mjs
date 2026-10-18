@@ -42,41 +42,33 @@ test('heads-up button posts small blind and acts first preflop, last postflop',(
   endRound(room);nextStreet(room);assert.equal(actor(room),1);move(room,'check');assert.equal(actor(room),0);
 });
 
-test('out-of-turn, stale turns, undercalls, illegal checks and small raises are atomic',()=>{
+test('out-of-turn, stale turns, undercalls and illegal checks are atomic',()=>{
   const room=table(), player=room.players[3], before=JSON.stringify(room);
   for(const [p,action,data] of [
     [room.players[0],'fold',{turnId:room.betting.turnId}],
     [player,'call',{turnId:'old-turn'}],
     [player,'check',{turnId:room.betting.turnId}],
     [player,'bet',{amount:5,turnId:room.betting.turnId}],
-    [player,'bet',{amount:15,turnId:room.betting.turnId}],
     [player,'bet',{amount:20,turnId:room.betting.turnId,chipCounts:{5:3,10:0,25:0,50:0,100:0}}]
   ]){assert.throws(()=>playerAction(room,p,action,data));assert.equal(JSON.stringify(room),before);}
 });
 
-test('a raise gives everyone else another turn and the minimum raise tracks its size',()=>{
-  const room=table();move(room,'bet',50);assert.equal(room.betting.minRaise,40);assert.equal(actor(room),0);
-  const before=JSON.stringify(room);assert.throws(()=>move(room,'bet',85),/minimum/);assert.equal(JSON.stringify(room),before);
-  move(room,'bet',90);assert.equal(room.betting.currentBet,90);assert.equal(room.betting.minRaise,40);
-  endRound(room);assert.equal(room.betting.phase,'between');assert.ok(room.players.every(p=>p.contribution===90));
+test('any increase reopens betting, even below the previous raise size',()=>{
+  const room=table();move(room,'bet',50);assert.equal(actor(room),0);
+  assert.equal(bettingOptions(room,room.players[0]).minimumTotal,55);
+  move(room,'bet',55);assert.equal(room.betting.currentBet,55);
+  move(room,'bet',55); // Small blind raises its total to 60 by adding 55.
+  assert.equal(room.betting.currentBet,60);
+  endRound(room);assert.equal(room.betting.phase,'between');assert.ok(room.players.every(p=>p.contribution===60));
 });
 
-test('short all-in reopens a call but not a raise for someone who already acted',()=>{
-  const room=table(4,[600,600,600,15]);
-  move(room,'call');move(room,'call');move(room,'call');
-  // The big blind raises; the original caller can now use their short all-in.
-  move(room,'bet',10); // total 20, a full raise
-  assert.equal(actor(room),3);move(room,'all-in'); // only 5 left, a short call
-  assert.equal(room.players[3].balance,0);
-  endRound(room);assert.equal(total(room),1815);
-  const other=table(3,[600,15,600]);
-  move(other,'call'); // button calls 10
-  move(other,'all-in'); // small blind raises total to 15, below the minimum 20
-  assert.equal(actor(other),2);assert.equal(bettingOptions(other,other.players[2]).canRaise,true);
-  move(other,'call');assert.equal(actor(other),0);
-  assert.equal(bettingOptions(other,other.players[0]).canRaise,false);
-  const before=JSON.stringify(other);assert.throws(()=>move(other,'bet',20),/not reopened/);assert.equal(JSON.stringify(other),before);
-  move(other,'call');assert.equal(other.betting.phase,'between');
+test('a small all-in increase lets earlier callers raise again',()=>{
+  const room=table(3,[600,15,600]);
+  move(room,'call');move(room,'all-in');
+  assert.equal(actor(room),2);move(room,'call');assert.equal(actor(room),0);
+  assert.equal(bettingOptions(room,room.players[0]).canRaise,true);
+  move(room,'bet',10);assert.equal(room.betting.currentBet,20);
+  endRound(room);assert.equal(room.betting.phase,'between');assert.equal(total(room),1215);
 });
 
 test('cumulative short all-ins reopen a raise for a player who previously called',()=>{
@@ -88,15 +80,14 @@ test('cumulative short all-ins reopen a raise for a player who previously called
   endRound(room);assert.equal(room.betting.phase,'between');
 });
 
-test('a short opening all-in does not reopen a check and must be raised by a full blind',()=>{
+test('a five-chip opening is allowed and reopens betting after a check',()=>{
   const room=table(3,[600,600,15]);endRound(room);nextStreet(room);
-  move(room,'check');move(room,'all-in'); // 5 chips into a round with a 10 minimum.
-  assert.equal(actor(room),0);assert.equal(bettingOptions(room,room.players[0]).minimumTotal,15);
-  const before=JSON.stringify(room);assert.throws(()=>move(room,'bet',10),/minimum/);assert.equal(JSON.stringify(room),before);
-  move(room,'call');assert.equal(actor(room),1);assert.equal(bettingOptions(room,room.players[1]).canRaise,false);
-  assert.throws(()=>move(room,'bet',15),/not reopened/);move(room,'call');assert.equal(room.betting.phase,'between');
-  const other=table(3,[600,15,600]);endRound(other);nextStreet(other);move(other,'all-in');
-  move(other,'bet',15);assert.equal(other.betting.minRaise,10);assert.equal(other.betting.currentBet,15);
+  move(room,'check');move(room,'all-in');
+  assert.equal(room.betting.currentBet,5);assert.equal(actor(room),0);
+  assert.equal(bettingOptions(room,room.players[0]).minimumTotal,10);
+  move(room,'bet',10);assert.equal(room.betting.currentBet,10);
+  assert.equal(actor(room),1);assert.equal(bettingOptions(room,room.players[1]).canRaise,true);
+  move(room,'bet',15);endRound(room);assert.equal(room.betting.phase,'between');
 });
 
 test('folds skip players and award the pot automatically to the last player',()=>{

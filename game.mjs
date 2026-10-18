@@ -94,9 +94,8 @@ export function bettingOptions(room, player) {
   const b = room.betting;
   const canAct = b?.phase === 'betting' && b.actorId === player.id && player.inHand && player.balance > 0;
   const owed = Math.max(0, (b?.currentBet || 0) - (player.roundContribution || 0));
-  const acted = b?.actedAt?.[player.id];
-  const canRaise = canAct && (acted === undefined || b.currentBet - acted >= b.minRaise) && room.players.some(p => p.id !== player.id && p.inHand && p.balance > 0);
-  const minimumTotal = (b?.currentBet || 0) + (b?.minRaise || room.bigBlind);
+  const canRaise = canAct && room.players.some(p => p.id !== player.id && p.inHand && p.balance > 0);
+  const minimumTotal = (b?.currentBet || 0) + denominations[0];
   return {canAct, callAmount:Math.min(player.balance,owed), canCheck:canAct && owed === 0, canRaise,
     minimumTotal, minimumAmount:Math.max(0,minimumTotal-(player.roundContribution || 0))};
 }
@@ -140,7 +139,7 @@ export function startHand(room, data = {}) {
   room.buttonSeat = button.seat;
   room.players.forEach(p => {p.inHand = p.balance > 0; p.contribution = 0; p.roundContribution = 0;});
   room.betting = {phase:'betting',street:'preflop',buttonId:button.id,smallBlindId:small.id,bigBlindId:big.id,
-    currentBet:room.bigBlind,minRaise:room.bigBlind,actedAt:{},pending:funded.map(p => p.id),actorId:null,turnId:null};
+    currentBet:room.bigBlind,pending:funded.map(p => p.id),actorId:null,turnId:null};
   for (const [player, blind, label] of [[small,room.smallBlind,'small blind'],[big,room.bigBlind,'big blind']]) {
     const amount = Math.min(player.balance,blind);
     bet(room,player,amount); player.roundContribution = amount;
@@ -154,7 +153,7 @@ export function nextStreet(room) {
   if (b?.phase !== 'between') throw new Error('Finish the current betting round first.');
   const streets = ['preflop','flop','turn','river'];
   b.street = streets[streets.indexOf(b.street)+1]; b.phase = 'betting';
-  b.currentBet = 0; b.minRaise = room.bigBlind; b.actedAt = {};
+  b.currentBet = 0;
   b.pending = room.players.filter(p => p.inHand && p.balance > 0).map(p => p.id);
   room.players.forEach(p => {p.roundContribution = 0;});
   advanceAction(room,room.buttonSeat);
@@ -169,7 +168,6 @@ export function playerAction(room, player, action, data = {}) {
     log(room, `${player.name} folded`, 'fold', {playerId:player.id});
   } else if (action === 'check') {
     if (!options.canCheck) throw new Error('Call the bet or fold. You cannot check.');
-    b.actedAt[player.id] = 0;
     log(room, `${player.name} checked`, 'check', {playerId:player.id});
   } else {
     const amount = action === 'call' ? options.callAmount : action === 'all-in' ? player.balance : data.amount;
@@ -178,8 +176,7 @@ export function playerAction(room, player, action, data = {}) {
     const total = player.roundContribution + amount;
     if (total < b.currentBet && amount !== player.balance) throw new Error(`Call ${options.callAmount} or go all in.`);
     if (total > b.currentBet) {
-      if (!options.canRaise) throw new Error('Betting has not reopened. You can only call or fold.');
-      if (total < options.minimumTotal && amount !== player.balance) throw new Error(`The minimum bet or raise is ${options.minimumAmount}.`);
+      if (!options.canRaise) throw new Error('You can only call or fold when no opponent has chips to bet.');
     }
     // Validate and transfer chips before changing the turn or any raise state.
     bet(room,player,amount,false,data.chipValues,data.chipCounts);
@@ -187,16 +184,9 @@ export function playerAction(room, player, action, data = {}) {
     const previousBet = b.currentBet;
     player.roundContribution = total;
     if (total > previousBet) {
-      const fullRaise = total >= options.minimumTotal;
-      if (fullRaise) {
-        b.minRaise = total - previousBet;
-        b.pending = room.players.filter(p => p.inHand && p.balance > 0 && p.id !== player.id).map(p => p.id);
-      } else {
-        b.pending = [...new Set([...b.pending,...room.players.filter(p => p.inHand && p.balance > 0 && p.roundContribution < total).map(p => p.id)])];
-      }
+      b.pending = room.players.filter(p => p.inHand && p.balance > 0 && p.id !== player.id).map(p => p.id);
       b.currentBet = total;
     }
-    b.actedAt[player.id] = b.currentBet;
   }
   b.pending = b.pending.filter(id => id !== player.id);
   advanceAction(room,player.seat);
